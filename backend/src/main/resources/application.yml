@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: simrs-backend
+  datasource:
+    url: jdbc:postgresql://${SIMRS_DB_HOST:localhost}:${SIMRS_DB_PORT:5432}/${SIMRS_DB_NAME:medisafe}
+    username: ${SIMRS_DB_USER:postgres}
+    password: ${SIMRS_DB_PASSWORD:ibnrusyd}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: simrs-hikari
+      maximum-pool-size: ${SIMRS_DB_MAX_POOL_SIZE:10}
+      minimum-idle: ${SIMRS_DB_MIN_IDLE:1}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQL95Dialect
+        format_sql: true
+        jdbc:
+          lob:
+            non_contextual_creation: true
+        implicit_naming_strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl
+        physical_naming_strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+
+server:
+  port: ${SERVER_PORT:9090}
+  servlet:
+    session:
+      cookie:
+        name: SIMRSSESSION
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+app:
+  cors:
+    allowed-origins: ${SIMRS_ALLOWED_ORIGINS:http://localhost:5173}
+  auth:
+    session-timeout-seconds: ${SIMRS_SESSION_TIMEOUT_SECONDS:3000}
+  admission:
+    card-fee: ${SIMRS_ADMISSION_CARD_FEE:0}
+    coa-ar-key: ${SIMRS_ADMISSION_COA_AR_KEY:COA_INPATIENT_AR}
+    registration-coa-key: ${SIMRS_ADMISSION_REGISTRATION_COA_KEY:COA_ADM}
+    registration-coa-fallback-key: ${SIMRS_ADMISSION_REGISTRATION_COA_FALLBACK_KEY:COA_MISC_TRX}
+  legacy:
+    ui-pages: 281
+    hibernate-mappings: 122
+    ui-controllers: 112
