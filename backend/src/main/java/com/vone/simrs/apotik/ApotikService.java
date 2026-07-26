@@ -168,10 +168,10 @@ public class ApotikService {
     private String determineInpatientTariffClass(Integer regId) {
         try {
             return jdbcTemplate.queryForObject(
-                "select cls.v_class_code from tb_bed_occupancy bc "
-                    + "join ms_bed bed on bed.n_bed_id = bc.n_bed_id "
-                    + "join ms_class cls on cls.n_class_id = bed.n_class_id "
-                    + "where bc.n_reg_id = ? and bc.d_end_date is null limit 1",
+                "select tclass.v_tclass_desc from tb_bed_occupancy boc "
+                    + "join ms_bed bed on bed.n_bed_id = boc.n_bed_primary_id "
+                    + "join ms_treatment_class tclass on tclass.n_tclass_id = bed.n_tclass_id "
+                    + "where boc.n_reg_primary_id = ? and boc.d_check_out_time is null limit 1",
                 String.class, regId
             );
         } catch (EmptyResultDataAccessException e) {
@@ -262,8 +262,8 @@ public class ApotikService {
                 toIsoDateTime(resultSet.getTimestamp("d_whn_create"))
             ),
             unitId,
-            like(normalizeOptional(noteNumber)),
-            like(normalizeOptional(patientName))
+            like(normalizeOptionalUpper(noteNumber)),
+            like(normalizeOptionalUpper(patientName))
         );
     }
 
@@ -314,8 +314,8 @@ public class ApotikService {
 
         jdbcTemplate.update(
             "insert into tb_examination (v_note_no, n_exam_status, d_whn_create, v_who_create, "
-                + "n_unit_id, n_patient_id, n_reg_id, v_recipe_no, n_total_amount, v_note_type) "
-                + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, 'J')",
+                + "n_unit_id, n_patient_id, n_reg_id, v_recipe_no, n_total_amount) "
+                + "values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             noteNumber, NOTE_ACTIVE, now, username,
             request.getUnitId(), ctx.getPatientId(), ctx.getRegistrationId(),
             normalizeOptional(request.getReceiptNumber()), totalAmount
@@ -365,6 +365,9 @@ public class ApotikService {
                 + "where n_exam_id = ?",
             NOTE_VALIDATED, now, username, noteId
         );
+
+        createApotikJournal(noteId, header, unit, now, username);
+
         return new ApotikActionResultResponse(true, "Nota berhasil divalidasi.");
     }
 
@@ -570,7 +573,7 @@ public class ApotikService {
         );
         for (InventoryRestoreRow row : items) {
             jdbcTemplate.update(
-                "update tb_item_inventory set n_qty = n_qty + ? "
+                "update tb_item_inventory set n_item_inv_qty = n_item_inv_qty + ? "
                     + "where n_item_id = ? and n_whouse_id = (select unt.n_whouse_id from ms_unit unt "
                     + "  join tb_examination nota on nota.n_unit_id = unt.n_unit_id "
                     + "  join tb_retur_pharmacy_trx ret on ret.n_note_id = nota.n_exam_id "
@@ -761,11 +764,11 @@ public class ApotikService {
         double amountAfterDisc = amountBeforeDisc - discAmount;
         String discType = normalizeDiscountType(line.getDiscountType());
         jdbcTemplate.update(
-            "insert into tb_item_trx (n_note_id, n_item_id, n_qty, n_item_price, "
+            "insert into tb_item_trx (n_note_id, n_item_id, n_qty, "
                 + "n_amount_trx, n_disc_amount, v_disc_type, n_amount_after_disc, "
                 + "aturan_pakai, d_whn_create, v_who_create) "
-                + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            noteId, line.getReferenceId(), (float) qty, price,
+                + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            noteId, line.getReferenceId(), (float) qty,
             amountBeforeDisc, discAmount, discType, amountAfterDisc,
             normalizeOptional(line.getInstruction()), now, username
         );
@@ -837,7 +840,7 @@ public class ApotikService {
     private List<ApotikNoteLineResponse> getItemLines(Integer noteId) {
         return jdbcTemplate.query(
             "select trx.n_item_trx_id, item.v_item_code, item.v_item_name, "
-                + "meas.v_mitem_end_quantify, trx.n_qty, trx.n_item_price, "
+                + "meas.v_mitem_end_quantify, trx.n_qty, "
                 + "trx.n_amount_trx, trx.n_disc_amount, trx.v_disc_type, "
                 + "trx.n_amount_after_disc, trx.aturan_pakai "
                 + "from tb_item_trx trx "
@@ -966,7 +969,7 @@ public class ApotikService {
         );
         for (InventoryRow row : items) {
             jdbcTemplate.update(
-                "update tb_item_inventory set n_qty = n_qty - ? "
+                "update tb_item_inventory set n_item_inv_qty = n_item_inv_qty - ? "
                     + "where n_item_id = ? and n_whouse_id = ?",
                 row.getTotalQuantity(), row.getItemId(), warehouseId
             );
@@ -986,7 +989,7 @@ public class ApotikService {
         );
         for (InventoryRow row : compoundItems) {
             jdbcTemplate.update(
-                "update tb_item_inventory set n_qty = n_qty - ? "
+                "update tb_item_inventory set n_item_inv_qty = n_item_inv_qty - ? "
                     + "where n_item_id = ? and n_whouse_id = ?",
                 row.getTotalQuantity(), row.getItemId(), warehouseId
             );
@@ -1007,7 +1010,7 @@ public class ApotikService {
         );
         for (InventoryRow row : items) {
             jdbcTemplate.update(
-                "update tb_item_inventory set n_qty = n_qty + ? "
+                "update tb_item_inventory set n_item_inv_qty = n_item_inv_qty + ? "
                     + "where n_item_id = ? and n_whouse_id = ?",
                 row.getTotalQuantity(), row.getItemId(), warehouseId
             );
@@ -1027,7 +1030,7 @@ public class ApotikService {
         );
         for (InventoryRow row : compoundItems) {
             jdbcTemplate.update(
-                "update tb_item_inventory set n_qty = n_qty + ? "
+                "update tb_item_inventory set n_item_inv_qty = n_item_inv_qty + ? "
                     + "where n_item_id = ? and n_whouse_id = ?",
                 row.getTotalQuantity(), row.getItemId(), warehouseId
             );
@@ -1135,6 +1138,184 @@ public class ApotikService {
     private Integer getNullableInteger(java.sql.ResultSet resultSet, String columnName) throws java.sql.SQLException {
         Number number = (Number) resultSet.getObject(columnName);
         return number == null ? null : number.intValue();
+    }
+
+    // ===================== ACCOUNTING JOURNAL =====================
+
+    private void createApotikJournal(Integer noteId, ApotikNoteHeader header,
+                                     UnitRow unit, Timestamp now, String username) {
+        String batchId = buildJournalBatchId();
+        String voucherNo = header.getNoteNumber();
+        boolean ip = header.isInpatient();
+        String arCoaKey = ip ? "COA_INPATIENT_AR" : "COA_OUTPATIENT_AR";
+        Integer coaArId = findCoaIdByGimKey(arCoaKey);
+        if (coaArId == null) throw new IllegalStateException(
+            "COA AR untuk " + (ip ? "rawat inap" : "rawat jalan") + " belum dikonfigurasi.");
+        Integer coaInvId = findWarehouseCoaId(unit.getWarehouseId());
+        if (coaInvId == null) throw new IllegalStateException(
+            "COA inventory warehouse #" + unit.getWarehouseId() + " belum dikonfigurasi.");
+        // ITEM lines
+        for (JournalItemLine line : getItemLinesForJournal(noteId)) {
+            Integer coaIncomeId = findItemSellCoaId(line.itemId);
+            Integer coaCogsId = findItemCogsCoaId(line.itemId);
+            if (coaIncomeId == null || coaCogsId == null)
+                throw new IllegalStateException("COA penjualan/COGS item #" + line.itemId + " belum dikonfigurasi.");
+            double cogs = calculateItemCogs(line.itemId, line.qty);
+            String m = "ITEMCODE:" + line.itemCode + ";QTY:" + line.qty + ";DISCOUNT:" + line.discAmount;
+            insertJournal(batchId, voucherNo, m, line.amountAfterDisc, 0, now, username, coaArId);
+            insertJournal(batchId, voucherNo, m, 0, line.amountAfterDisc, now, username, coaIncomeId);
+            insertJournal(batchId, voucherNo, m, 0, cogs, now, username, coaInvId);
+            insertJournal(batchId, voucherNo, m, cogs, 0, now, username, coaCogsId);
+        }
+        // COMPOUND lines
+        for (JournalCompoundLine cpd : getCompoundLinesForJournal(noteId)) {
+            double totalCogs = 0;
+            for (JournalCompoundComponent comp : cpd.components) totalCogs += calculateItemCogs(comp.itemId, comp.qty);
+            String m = "ITEMCODE:" + cpd.compoundCode + ";QTY:" + cpd.qty + ";DISCOUNT:" + cpd.discAmount;
+            insertJournal(batchId, voucherNo, m, cpd.amountAfterDisc, 0, now, username, coaArId);
+            insertJournal(batchId, voucherNo, m, 0, cpd.amountAfterDisc, now, username, coaInvId);
+            insertJournal(batchId, voucherNo, m, 0, totalCogs, now, username, coaInvId);
+            insertJournal(batchId, voucherNo, m, totalCogs, 0, now, username, coaInvId);
+        }
+        // MISC lines
+        Integer coaMiscId = findCoaIdByGimKey("COA_DEFAULT_MISC_TRX");
+        if (coaMiscId == null) throw new IllegalStateException("COA misc belum dikonfigurasi.");
+        for (JournalMiscLine misc : getMiscLinesForJournal(noteId)) {
+            String m = "MISC:" + misc.miscName + ";QTY:" + misc.qty;
+            insertJournal(batchId, voucherNo, m, misc.amountAfterDisc, 0, now, username, coaArId);
+            insertJournal(batchId, voucherNo, m, 0, misc.amountAfterDisc, now, username, coaMiscId);
+        }
+    }
+
+    // ===================== JOURNAL HELPERS =====================
+
+    private void insertJournal(String batchId, String voucherNo, String desc,
+            double debit, double credit, Timestamp now, String username, Integer coaId) {
+        Integer journalId = getNextSequence("tb_journal_trx_n_journal_id_seq");
+        jdbcTemplate.update(
+            "insert into tb_journal_trx (n_journal_id, v_journal_batch_id, v_voucher_no, "
+                + "v_desc, n_debit, n_credit, d_whn_create, v_who_create, d_apl_date, n_coa_id) "
+                + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            journalId, batchId, voucherNo, desc, debit, credit, now, username, now, coaId);
+    }
+
+    private Integer findCoaIdByGimKey(String gimKey) {
+        try { return jdbcTemplate.queryForObject(
+            "select coa.n_coa_id from ms_gim gim join ms_coa coa on coa.v_acct_no = gim.v_value where gim.v_key = ?",
+            Integer.class, gimKey);
+        } catch (EmptyResultDataAccessException e) { return null; }
+    }
+
+    private Integer findWarehouseCoaId(Integer wid) {
+        try { return jdbcTemplate.queryForObject("select n_coa_id from ms_warehouse where n_whouse_id = ?", Integer.class, wid);
+        } catch (EmptyResultDataAccessException e) { return null; }
+    }
+
+    private Integer findItemSellCoaId(Integer itemId) {
+        try { return jdbcTemplate.queryForObject("select n_item_sell_acc_no from ms_item where n_item_id = ?", Integer.class, itemId);
+        } catch (EmptyResultDataAccessException e) { return null; }
+    }
+
+    private Integer findItemCogsCoaId(Integer itemId) {
+        try { return jdbcTemplate.queryForObject("select n_item_cogs_no from ms_item where n_item_id = ?", Integer.class, itemId);
+        } catch (EmptyResultDataAccessException e) { return null; }
+    }
+
+    private double calculateItemCogs(Integer itemId, double qty) {
+        try {
+            Double avg = jdbcTemplate.queryForObject(
+                "select coalesce(avg(batch.n_cogs_price), 0) from tb_batch_item batch "
+                    + "join tb_item_inventory inv on inv.n_batch_id = batch.n_batch_id "
+                    + "where inv.n_item_id = ? and inv.n_item_inv_qty > 0", Double.class, itemId);
+            return (avg != null ? avg : 0) * qty;
+        } catch (EmptyResultDataAccessException e) { return 0; }
+    }
+
+    private String buildJournalBatchId() {
+        return "AR" + String.format("%015d", getNextSequence("sq_journal_trx"));
+    }
+
+    // ===================== JOURNAL QUERIES =====================
+
+    private List<JournalItemLine> getItemLinesForJournal(Integer noteId) {
+        return jdbcTemplate.query(
+            "select trx.n_item_id, item.v_item_code, trx.n_qty, "
+                + "trx.n_amount_trx, trx.n_disc_amount, trx.n_amount_after_disc "
+                + "from tb_item_trx trx join ms_item item on item.n_item_id = trx.n_item_id where trx.n_note_id = ?",
+            (rs, rn) -> new JournalItemLine(rs.getInt("n_item_id"), rs.getString("v_item_code"),
+                rs.getDouble("n_qty"), rs.getDouble("n_amount_trx"),
+                rs.getDouble("n_disc_amount"), rs.getDouble("n_amount_after_disc")), noteId);
+    }
+
+    private List<JournalCompoundLine> getCompoundLinesForJournal(Integer noteId) {
+        return jdbcTemplate.query(
+            "select ingr.n_dingr_id, ingr.v_dingr_id, ingr.n_dingr_qty, "
+                + "ingr.n_amount_trx, ingr.n_disc_amount, ingr.n_amount_after_disc "
+                + "from tb_drug_ingredients ingr where ingr.n_note_id = ?",
+            (rs, rn) -> {
+                Integer cid = rs.getInt("n_dingr_id");
+                List<JournalCompoundComponent> comps = getCompoundComponentsForJournal(cid);
+                return new JournalCompoundLine(cid, rs.getString("v_dingr_id"),
+                    rs.getDouble("n_dingr_qty"), rs.getDouble("n_amount_trx"),
+                    rs.getDouble("n_disc_amount"), rs.getDouble("n_amount_after_disc"), comps);
+            }, noteId);
+    }
+
+    private List<JournalCompoundComponent> getCompoundComponentsForJournal(Integer compoundId) {
+        return jdbcTemplate.query(
+            "select det.n_item_id, sum(det.n_dingr_det_qty) as qty "
+                + "from tb_drug_ingredients_detail det where det.n_dingr_id = ? group by det.n_item_id",
+            (rs, rn) -> new JournalCompoundComponent(rs.getInt("n_item_id"), rs.getDouble("qty")), compoundId);
+    }
+
+    private List<JournalMiscLine> getMiscLinesForJournal(Integer noteId) {
+        return jdbcTemplate.query(
+            "select v_misc_name, n_qty, n_amount_trx, n_disc_amount, n_amount_after_disc "
+                + "from tb_misc_trx where n_note_id = ?",
+            (rs, rn) -> new JournalMiscLine(rs.getString("v_misc_name"), rs.getDouble("n_qty"),
+                rs.getDouble("n_amount_trx"), rs.getDouble("n_disc_amount"), rs.getDouble("n_amount_after_disc")), noteId);
+    }
+
+    // ===================== JOURNAL INNER CLASSES =====================
+
+    private static class JournalItemLine {
+        final int itemId; final String itemCode; final double qty;
+        final double amountTrx; final double discAmount; final double amountAfterDisc;
+        JournalItemLine(int itemId, String itemCode, double qty,
+                        double amountTrx, double discAmount, double amountAfterDisc) {
+            this.itemId = itemId; this.itemCode = itemCode; this.qty = qty;
+            this.amountTrx = amountTrx; this.discAmount = discAmount; this.amountAfterDisc = amountAfterDisc;
+        }
+    }
+
+    private static class JournalCompoundLine {
+        final int compoundId; final String compoundCode; final double qty;
+        final double amountTrx; final double discAmount; final double amountAfterDisc;
+        final List<JournalCompoundComponent> components;
+        JournalCompoundLine(int compoundId, String compoundCode, double qty,
+                            double amountTrx, double discAmount, double amountAfterDisc,
+                            List<JournalCompoundComponent> components) {
+            this.compoundId = compoundId; this.compoundCode = compoundCode; this.qty = qty;
+            this.amountTrx = amountTrx; this.discAmount = discAmount; this.amountAfterDisc = amountAfterDisc;
+            this.components = components;
+        }
+    }
+
+    private static class JournalCompoundComponent {
+        final int itemId; final double qty;
+        JournalCompoundComponent(int itemId, double qty) {
+            this.itemId = itemId; this.qty = qty;
+        }
+    }
+
+    private static class JournalMiscLine {
+        final String miscName; final double qty; final double amountTrx;
+        final double discAmount; final double amountAfterDisc;
+        JournalMiscLine(String miscName, double qty, double amountTrx,
+                        double discAmount, double amountAfterDisc) {
+            this.miscName = miscName; this.qty = qty; this.amountTrx = amountTrx;
+            this.discAmount = discAmount; this.amountAfterDisc = amountAfterDisc;
+        }
     }
 
     // ===================== INNER CLASSES =====================

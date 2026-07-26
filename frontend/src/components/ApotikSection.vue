@@ -13,6 +13,8 @@ const searchingPatients = ref(false);
 const message = ref('');
 const error = ref('');
 
+const searchMode = ref('patient'); // 'patient' or 'note'
+
 const masters = reactive({ units: [], patientTypes: [], pajakObatRajal: 0.03 });
 const selectedUnitId = ref('');
 
@@ -24,6 +26,13 @@ const showSearch = ref(true);
 const showObmPanel = ref(false);
 const showRacikanPanel = ref(false);
 const showMiscPanel = ref(false);
+
+// Note search state
+const noteSearch = reactive({ noteNumber: '', patientName: '' });
+const noteResults = ref([]);
+const searchingNotes = ref(false);
+const selectedNote = ref(null);
+const selectedNoteDetail = ref(null);
 
 const itemSearch = reactive({ code: '', name: '' });
 const itemResults = ref([]);
@@ -519,6 +528,87 @@ function resetSearch() {
   showSearch.value = true;
 }
 
+// ===================== NOTE SEARCH =====================
+
+async function searchNotes() {
+  if (!selectedUnitId.value) {
+    error.value = 'Pilih lokasi transaksi terlebih dahulu.';
+    return;
+  }
+  if (!noteSearch.noteNumber && !noteSearch.patientName) {
+    error.value = 'Isi No. Nota atau Nama Pasien.';
+    return;
+  }
+
+  searchingNotes.value = true;
+  error.value = '';
+  message.value = '';
+  selectedNote.value = null;
+  selectedNoteDetail.value = null;
+
+  try {
+    const params = new URLSearchParams();
+    if (noteSearch.noteNumber) params.set('noteNumber', noteSearch.noteNumber);
+    if (noteSearch.patientName) params.set('patientName', noteSearch.patientName);
+    const res = await request(`/apotik/units/${selectedUnitId.value}/notes?${params}`);
+    noteResults.value = res.data || [];
+    if (noteResults.value.length === 0) {
+      message.value = 'Tidak ditemukan nota dengan kriteria tersebut.';
+    }
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    searchingNotes.value = false;
+  }
+}
+
+async function selectNote(noteId) {
+  try {
+    const res = await request(`/apotik/notes/${noteId}`);
+    selectedNoteDetail.value = res.data;
+    selectedNote.value = res.data;
+    noteResults.value = [];
+    error.value = '';
+    message.value = '';
+  } catch (e) {
+    error.value = e.message;
+  }
+}
+
+async function validateRetrievedNote() {
+  if (!selectedNoteDetail.value) return;
+  validatingNote.value = true;
+  error.value = '';
+  try {
+    const res = await request(`/apotik/notes/${selectedNoteDetail.value.noteId}/validate`, { method: 'POST' });
+    if (res.data.success) {
+      message.value = `Nota ${selectedNoteDetail.value.noteNumber} berhasil divalidasi.`;
+      selectedNoteDetail.value = null;
+      selectedNote.value = null;
+    }
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    validatingNote.value = false;
+  }
+}
+
+function resetNoteSearch() {
+  noteSearch.noteNumber = '';
+  noteSearch.patientName = '';
+  noteResults.value = [];
+  selectedNote.value = null;
+  selectedNoteDetail.value = null;
+  message.value = '';
+  error.value = '';
+}
+
+function switchSearchMode(mode) {
+  searchMode.value = mode;
+  error.value = '';
+  message.value = '';
+}
+
 function toggleSearch() {
   showSearch.value = !showSearch.value;
 }
@@ -587,8 +677,18 @@ onMounted(async () => {
       <div v-if="message" class="status-banner status-banner--success">{{ message }}</div>
       <div v-if="error" class="status-banner status-banner--error">{{ error }}</div>
 
-      <!-- Patient Search -->
-      <div class="card search-card">
+      <!-- Mode Tabs -->
+      <div class="mode-tabs">
+        <button class="mode-tab" :class="{ 'mode-tab--active': searchMode === 'patient' }" @click="switchSearchMode('patient')">
+          🏥 Cari / Input Pasien Baru
+        </button>
+        <button class="mode-tab" :class="{ 'mode-tab--active': searchMode === 'note' }" @click="switchSearchMode('note')">
+          📋 Cari Nota Aktif
+        </button>
+      </div>
+
+      <!-- Patient Search Section -->
+      <div v-if="searchMode === 'patient'" class="card search-card">
         <h3>
           <span>Pencarian Pasien</span>
           <span class="search-actions">
@@ -960,26 +1060,139 @@ onMounted(async () => {
               <button class="secondary-button" type="button" @click="resetAll">Batal</button>
             </div>
           </div>
+        </div>
 
-          <!-- Saved Note Info -->
-          <div v-if="savedNote" class="card saved-note-card">
-            <h3>✅ Transaksi Tersimpan</h3>
-            <div class="saved-note-info">
-              <div class="note-info-item">
-                <span class="note-info-label">No. Nota</span>
-                <span class="note-info-value">{{ savedNote.noteNumber }}</span>
-              </div>
-              <div class="note-info-item">
-                <span class="note-info-label">Status</span>
-                <span class="note-info-value note-status">Belum Validasi</span>
-              </div>
+        <!-- Saved Note Info (outside cartItems container) -->
+        <div v-if="savedNote" class="card saved-note-card">
+          <h3>✅ Transaksi Tersimpan</h3>
+          <div class="saved-note-info">
+            <div class="note-info-item">
+              <span class="note-info-label">No. Nota</span>
+              <span class="note-info-value">{{ savedNote.noteNumber }}</span>
             </div>
-            <div class="save-actions">
-              <button class="primary-button primary-button--lg" :disabled="validatingNote" @click="validateNote">
-                {{ validatingNote ? 'Memvalidasi...' : '✅ Validasi Nota' }}
-              </button>
-              <button class="secondary-button" type="button" @click="newTransaction">Baru</button>
+            <div class="note-info-item">
+              <span class="note-info-label">Status</span>
+              <span class="note-info-value note-status">Belum Validasi</span>
             </div>
+          </div>
+          <div class="save-actions">
+            <button class="primary-button primary-button--lg" :disabled="validatingNote" @click="validateNote">
+              {{ validatingNote ? 'Memvalidasi...' : '✅ Validasi Nota' }}
+            </button>
+            <button class="secondary-button" type="button" @click="newTransaction">Baru</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Note Search Section -->
+      <div v-if="searchMode === 'note'" class="card search-card">
+        <h3>
+          <span>🔍 Pencarian Nota Aktif</span>
+          <span class="search-actions">
+            <button v-if="selectedNote" class="small-button" type="button" @click="resetNoteSearch">Reset</button>
+          </span>
+        </h3>
+
+        <div v-if="!selectedNote" class="search-form">
+          <div class="form-row">
+            <label>
+              No. Nota
+              <input v-model="noteSearch.noteNumber" placeholder="Ketik No. Nota" @keyup.enter="searchNotes" />
+            </label>
+            <label>
+              Nama Pasien
+              <input v-model="noteSearch.patientName" placeholder="Nama pasien" @keyup.enter="searchNotes" />
+            </label>
+          </div>
+          <button class="primary-button" :disabled="searchingNotes" @click="searchNotes">
+            {{ searchingNotes ? 'Mencari...' : 'Cari Nota' }}
+          </button>
+        </div>
+
+        <!-- Note Search Results -->
+        <div v-if="noteResults.length" class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>No. Nota</th>
+                <th>Pasien</th>
+                <th>Status</th>
+                <th>Tgl. Buat</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="n in noteResults" :key="n.noteId">
+                <td><strong>{{ n.noteNumber }}</strong></td>
+                <td>{{ n.patientName }}</td>
+                <td><span class="badge" :class="statusBadgeClass(n.statusLabel)">{{ n.statusLabel }}</span></td>
+                <td>{{ n.createdAt }}</td>
+                <td>
+                  <button class="link-button" :disabled="n.statusCode !== 1" @click="selectNote(n.noteId)">
+                    {{ n.statusCode === 1 ? 'Pilih & Validasi' : 'Tervalidasi' }}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Selected Note Detail -->
+        <div v-if="selectedNoteDetail" class="selected-patient">
+          <h4>Detail Nota</h4>
+          <div class="patient-detail-grid">
+            <div class="detail-item">
+              <span class="detail-label">No. Nota</span>
+              <span class="detail-value">{{ selectedNoteDetail.noteNumber }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Status</span>
+              <span class="detail-value">{{ selectedNoteDetail.statusLabel }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Pasien</span>
+              <span class="detail-value">{{ selectedNoteDetail.patientName }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Total</span>
+              <span class="detail-value">Rp {{ formatCurrency(selectedNoteDetail.totalAmount) }}</span>
+            </div>
+          </div>
+
+          <!-- Note Lines -->
+          <div v-if="selectedNoteDetail.lines && selectedNoteDetail.lines.length" class="table-wrap" style="margin-top:12px;">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>KODE</th>
+                  <th>NAMA</th>
+                  <th>HARGA</th>
+                  <th>QTY</th>
+                  <th>SUBTOTAL</th>
+                  <th>ATURAN PAKAI</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(line, idx) in selectedNoteDetail.lines" :key="idx">
+                  <td><strong>{{ line.code }}</strong></td>
+                  <td>{{ line.description }}</td>
+                  <td>Rp {{ formatCurrency(line.unitPrice) }}</td>
+                  <td>{{ line.quantity }} {{ line.unitName || '' }}</td>
+                  <td>Rp {{ formatCurrency(line.subtotal) }}</td>
+                  <td>{{ line.instruction || '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Validate Button -->
+          <div v-if="selectedNoteDetail.canValidate" class="save-actions" style="margin-top:16px;">
+            <button class="primary-button primary-button--lg" :disabled="validatingNote" @click="validateRetrievedNote">
+              {{ validatingNote ? 'Memvalidasi...' : '✅ Validasi Nota' }}
+            </button>
+          </div>
+          <div v-else-if="selectedNoteDetail.statusCode === 2" class="save-actions" style="margin-top:16px;">
+            <span class="note-status">✅ Nota sudah divalidasi</span>
           </div>
         </div>
       </div>
@@ -1268,6 +1481,40 @@ input:disabled, select:disabled { background: #f7f7f9; color: #6b7280; }
 
 .note-status {
   color: #b8860b;
+}
+/* mode tabs */
+.mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.mode-tab {
+  flex: 1;
+  padding: 12px 20px;
+  border: 2px solid #d1d9e6;
+  border-radius: 10px;
+  background: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  color: #3d4b63;
+  cursor: pointer;
+  transition: all .2s;
+}
+.mode-tab:hover { border-color: #5f83c2; color: #304b73; }
+.mode-tab--active {
+  background: #304b73;
+  border-color: #304b73;
+  color: #fff;
+}
+.mode-tab--active:hover { background: #1f3352; }
+
+/* note search */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
 }
 .link-button { background: transparent; border: 0; color: #2d5aa3; font-weight: 700; padding: 0; cursor: pointer; }
 
