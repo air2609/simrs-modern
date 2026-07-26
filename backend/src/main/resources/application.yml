@@ -54,3 +54,6 @@ app:
     ui-pages: 281
     hibernate-mappings: 122
     ui-controllers: 112
+
+  pajak:
+    obat-rajal: ${PAJAK_OBAT_RAJAL:0.03}
