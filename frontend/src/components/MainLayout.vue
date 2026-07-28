@@ -4,6 +4,8 @@ import AdmissionRegistrationSection from './AdmissionRegistrationSection.vue';
 import ApotikSection from './ApotikSection.vue';
 import JournalSection from './JournalSection.vue';
 import LocationMasterSection from './LocationMasterSection.vue';
+import LabTreatmentMasterSection from './LabTreatmentMasterSection.vue';
+import LaboratoryTransactionSection from './LaboratoryTransactionSection.vue';
 import PolyclinicSection from './PolyclinicSection.vue';
 
 const props = defineProps({
@@ -24,56 +26,72 @@ const props = defineProps({
 const emit = defineEmits(['logout', 'session-expired']);
 
 const selectedView = ref('overview');
-const locationScreenCodes = ['SCM0013', 'SCM0014', 'SCM0015', 'SCM0016'];
-const apotikScreenCode = 'SC0011';
-const polyclinicScreenCode = 'SC0091';
+const expandedModules = ref({});
 
-const admissionModule = computed(() => {
-  return props.activeUser.modules.find((moduleItem) => {
-    return /adm|admission|admi/i.test(moduleItem.moduleCode || '') || /admisi|pendaftaran/i.test(moduleItem.moduleName || '');
-  }) || null;
-});
+// Map screen codes to Vue component view names
+const screenViewMap = {
+  'SC0011': 'apotik',
+  'SC0091': 'polyclinic',
+  'SC0041': 'laboratory-transaction',
+  'SC0201': 'journal',
+  'SCM0051': 'lab-treatment-master',
+  'SCM0013': 'location-master',
+  'SCM0014': 'location-master',
+  'SCM0015': 'location-master',
+  'SCM0016': 'location-master'
+};
 
-const hasLocationMasterAccess = computed(() => {
-  return props.activeUser.modules.some((moduleItem) => {
-    return moduleItem.screens.some((screen) => locationScreenCodes.includes(screen.screenCode));
-  });
-});
+// Extra menu items not mapped from user modules
+const extraMenus = [
+  { view: 'overview', label: '🏠 Overview' },
+  { view: 'admission-registration', label: '📋 Pendaftaran Rawat Jalan' }
+];
 
-const hasPolyclinicAccess = computed(() => {
-  return props.activeUser.modules.some((moduleItem) => {
-    return moduleItem.screens.some((screen) => screen.screenCode === polyclinicScreenCode);
-  });
-});
+// Module expansion toggle (accordion style)
+function toggleModule(moduleCode) {
+  expandedModules.value[moduleCode] = !expandedModules.value[moduleCode];
+}
 
-const hasApotikAccess = computed(() => {
-  return props.activeUser.modules.some((moduleItem) => {
-    return moduleItem.screens.some((screen) => screen.screenCode === apotikScreenCode);
-  });
-});
+function isModuleExpanded(moduleCode) {
+  return expandedModules.value[moduleCode] === true;
+}
 
+// Navigate to a view
+function navigate(view) {
+  selectedView.value = view;
+}
+
+// Get a friendly icon/emoji for known screen codes
+function screenIcon(screenCode) {
+  const icons = {
+    'SC0011': '💊',
+    'SC0091': '🩺',
+    'SC0041': '🧪',
+    'SC0201': '📒',
+    'SCM0051': '🔬',
+    'SCM0013': '📍',
+    'SCM0014': '📍',
+    'SCM0015': '📍',
+    'SCM0016': '📍'
+  };
+  return icons[screenCode] || '📄';
+}
+
+// Apotik units (extracted from user modules)
 const apotikUnits = computed(() => {
   const seenUnitIds = new Set();
   const units = [];
-
   props.activeUser.modules.forEach((moduleItem) => {
     moduleItem.screens.forEach((screen) => {
-      if (screen.screenCode !== apotikScreenCode) {
-        return;
-      }
-
+      if (screen.screenCode !== 'SC0011') return;
       (screen.units || []).forEach((unit) => {
         const unitId = String(unit.unitId ?? '');
-        if (!unitId || unit.warehouseId == null || seenUnitIds.has(unitId)) {
-          return;
-        }
-
+        if (!unitId || unit.warehouseId == null || seenUnitIds.has(unitId)) return;
         seenUnitIds.add(unitId);
         units.push(unit);
       });
     });
   });
-
   return units;
 });
 </script>
@@ -84,103 +102,92 @@ const apotikUnits = computed(() => {
       <div>
         <p class="eyebrow">SIMRS</p>
         <h1>{{ activeUser.fullName || activeUser.username }}</h1>
-        <p class="sidebar-copy">
-          Login tersambung ke user existing dan session browser sekarang meniru pola aplikasi lama: login, buka shell, lalu timeout/logout kembali ke login.
-        </p>
       </div>
 
-      <div class="module-groups">
-        <section class="group-card">
-          <h2>Session</h2>
-          <ul>
-            <li>Username: {{ activeUser.username }}</li>
-            <li>Group ID: {{ activeUser.groupId ?? '-' }}</li>
-            <li>Branch ID: {{ activeUser.branchId ?? '-' }}</li>
-          </ul>
-        </section>
-
-        <section class="group-card">
-          <h2>Navigasi</h2>
-          <div class="nav-stack">
-            <button class="nav-button" type="button" @click="selectedView = 'overview'">Overview</button>
-            <button class="nav-button" type="button" @click="selectedView = 'admission-registration'">
-              Pendaftaran Rawat Jalan
-            </button>
-            <button v-if="hasApotikAccess" class="nav-button" type="button" @click="selectedView = 'apotik'">
-              Transaksi Apotik
-            </button>
-            <button v-if="hasPolyclinicAccess" class="nav-button" type="button" @click="selectedView = 'polyclinic'">
-              Transaksi Poliklinik
-            </button>
-            <button v-if="hasLocationMasterAccess" class="nav-button" type="button" @click="selectedView = 'location-master'">
-              Master Wilayah
-            </button>
-            <button class="nav-button" type="button" @click="selectedView = 'journal'">
-              📒 Open Journal
-            </button>
+      <!-- Accordion Menu seperti legacy -->
+      <nav class="accordion-menu">
+        <!-- Extra static menus -->
+        <div class="accordion-group">
+          <div class="accordion-header static" @click="navigate('overview')">
+            <span>🏠 Overview</span>
           </div>
-        </section>
+        </div>
 
-        <section v-for="moduleItem in activeUser.modules" :key="moduleItem.moduleId" class="group-card">
-          <h2>{{ moduleItem.moduleName }}</h2>
-          <ul>
-            <li v-for="screen in moduleItem.screens.slice(0, 6)" :key="screen.screenId">
-              {{ screen.screenName }} <span class="access-pill">{{ screen.accessType }}</span>
-            </li>
-          </ul>
-        </section>
+        <div class="accordion-group">
+          <div class="accordion-header static" @click="navigate('admission-registration')">
+            <span>📋 Pendaftaran Rawat Jalan</span>
+          </div>
+        </div>
+
+        <!-- Dynamic modules from user access -->
+        <div v-for="mod in activeUser.modules" :key="mod.moduleCode" class="accordion-group">
+          <div class="accordion-header" :class="{ expanded: isModuleExpanded(mod.moduleCode) }" @click="toggleModule(mod.moduleCode)">
+            <span class="accordion-title">{{ mod.moduleName }}</span>
+            <span class="accordion-arrow">{{ isModuleExpanded(mod.moduleCode) ? '▾' : '▸' }}</span>
+          </div>
+          <div v-if="isModuleExpanded(mod.moduleCode)" class="accordion-body">
+            <div v-for="screen in mod.screens" :key="screen.screenCode" class="accordion-item"
+              :class="{ active: selectedView === screenViewMap[screen.screenCode] }"
+              @click="screenViewMap[screen.screenCode] ? navigate(screenViewMap[screen.screenCode]) : null">
+              <span class="item-icon">{{ screenIcon(screen.screenCode) }}</span>
+              <span class="item-label">{{ screen.screenName }}</span>
+              <span class="item-code">{{ screen.screenCode }}</span>
+            </div>
+          </div>
+        </div>
+
+      </nav>
+
+      <!-- Logout -->
+      <div class="sidebar-footer">
+        <button class="logout-button" type="button" @click="emit('logout')">
+          🚪 Logout
+        </button>
       </div>
-
-      <button class="back-button" type="button" @click="$emit('logout')">
-        Logout
-      </button>
     </aside>
 
     <main class="content">
       <template v-if="selectedView === 'overview'">
-      <header class="hero-card">
-        <p class="hero-kicker">Rewrite Strategy</p>
-        <h2>Database-first, module-by-module migration</h2>
-        <p>
-          Session ini disimpan di server dan user diambil langsung dari `ms_user` existing dengan password MD5 legacy, username uppercase,
-          serta privilege modul/screen yang diwarisi dari tabel privilege lama.
-        </p>
-      </header>
-
-      <section class="metrics-grid">
-        <article class="metric-card">
-          <span class="metric-label">User login</span>
-          <strong>{{ activeUser.username }}</strong>
-        </article>
-        <article class="metric-card">
-          <span class="metric-label">Nama user</span>
-          <strong>{{ activeUser.fullName || '-' }}</strong>
-        </article>
-        <article class="metric-card">
-          <span class="metric-label">Legacy modules</span>
-          <strong>{{ activeUser.modules.length }} modul</strong>
-        </article>
-        <article class="metric-card">
-          <span class="metric-label">Backend target</span>
-          <strong>{{ props.systemInfo?.backendStack || 'Spring Boot 2.7 + Java 8' }}</strong>
-        </article>
-      </section>
-
-      <section class="roadmap-card">
-        <h3>Module privilege preview</h3>
-        <div class="screen-grid">
-          <article v-for="moduleItem in activeUser.modules" :key="moduleItem.moduleCode" class="screen-card">
-            <h4>{{ moduleItem.moduleName }}</h4>
-            <p class="screen-code">{{ moduleItem.moduleCode }}</p>
-            <ul>
-              <li v-for="screen in moduleItem.screens" :key="screen.screenCode">
-                <strong>{{ screen.screenCode }}</strong> - {{ screen.screenName }}
-                <span v-if="screen.units.length">({{ screen.units.length }} unit)</span>
-              </li>
-            </ul>
-          </article>
+        <div class="hero-card">
+          <p class="hero-kicker">SIMRS Modern Scaffold</p>
+          <h2>{{ activeUser.fullName || activeUser.username }}</h2>
+          <p>Login tersambung ke user existing. Klik menu di samping untuk membuka modul.</p>
         </div>
-      </section>
+
+        <section class="metrics-grid">
+          <article class="metric-card">
+            <span class="metric-label">User login</span>
+            <strong>{{ activeUser.username }}</strong>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">Nama user</span>
+            <strong>{{ activeUser.fullName || '-' }}</strong>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">Group ID</span>
+            <strong>{{ activeUser.groupId ?? '-' }}</strong>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">Branch ID</span>
+            <strong>{{ activeUser.branchId ?? '-' }}</strong>
+          </article>
+        </section>
+
+        <section class="roadmap-card">
+          <h3>Module privilege preview</h3>
+          <div class="screen-grid">
+            <article v-for="moduleItem in activeUser.modules" :key="moduleItem.moduleCode" class="screen-card">
+              <h4>{{ moduleItem.moduleName }}</h4>
+              <p class="screen-code">{{ moduleItem.moduleCode }}</p>
+              <ul>
+                <li v-for="screen in moduleItem.screens" :key="screen.screenCode">
+                  <strong>{{ screen.screenCode }}</strong> - {{ screen.screenName }}
+                  <span v-if="screen.units.length">({{ screen.units.length }} unit)</span>
+                </li>
+              </ul>
+            </article>
+          </div>
+        </section>
       </template>
 
       <AdmissionRegistrationSection
@@ -208,6 +215,18 @@ const apotikUnits = computed(() => {
         @session-expired="emit('session-expired', $event)"
       />
 
+      <LabTreatmentMasterSection
+        v-else-if="selectedView === 'lab-treatment-master'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <LaboratoryTransactionSection
+        v-else-if="selectedView === 'laboratory-transaction'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
       <LocationMasterSection
         v-else
         :api-base-url="apiBaseUrl"
@@ -221,98 +240,147 @@ const apotikUnits = computed(() => {
 .shell-page {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 280px 1fr;
   background: linear-gradient(135deg, #f1efe9 0%, #edf2fa 100%);
 }
 
 .sidebar {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 28px;
+  gap: 16px;
+  padding: 20px 0;
   background: #304b73;
   color: #fff;
+  overflow-y: auto;
 }
 
-.eyebrow,
-.hero-kicker,
-.metric-label {
+.sidebar > div:first-child {
+  padding: 0 16px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+}
+
+.eyebrow {
+  margin: 0 0 4px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.sidebar h1 {
+  margin: 0;
+  font-size: 18px;
+}
+
+/* Accordion menu */
+.accordion-menu {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.accordion-group {
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13px;
+  transition: background 0.15s;
+}
+
+.accordion-header:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+.accordion-header.static {
+  padding: 10px 16px;
   font-size: 12px;
 }
 
-.sidebar h1,
-.hero-card h2,
-.roadmap-card h3 {
-  margin: 0;
+.accordion-header.expanded {
+  background: rgba(255,255,255,0.08);
 }
 
-.sidebar-copy {
-  margin: 12px 0 0;
-  color: rgba(255, 255, 255, 0.88);
+.accordion-title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
-.module-groups {
-  display: grid;
-  gap: 14px;
-}
-
-.group-card {
-  padding: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.group-card h2 {
-  margin: 0 0 10px;
-  font-size: 16px;
-}
-
-.group-card ul {
-  margin: 0;
-  padding-left: 18px;
-}
-
-.group-card li + li {
-  margin-top: 6px;
-}
-
-.nav-stack {
-  display: grid;
-  gap: 10px;
-}
-
-.nav-button {
-  min-height: 36px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.access-pill {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
+.accordion-arrow {
   font-size: 11px;
+  opacity: 0.7;
 }
 
-.back-button {
-  height: 42px;
-  border: 0;
-  background: #5f83c2;
+.accordion-body {
+  background: rgba(0,0,0,0.15);
+}
+
+.accordion-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px 10px 24px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.15s;
+  border-left: 3px solid transparent;
+}
+
+.accordion-item:hover {
+  background: rgba(255,255,255,0.08);
+}
+
+.accordion-item.active {
+  background: rgba(255,255,255,0.12);
+  border-left-color: #5f83c2;
+}
+
+.item-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.item-label {
+  flex: 1;
+}
+
+.item-code {
+  font-size: 10px;
+  opacity: 0.5;
+  font-family: monospace;
+}
+
+.sidebar-footer {
+  padding: 12px 16px;
+  border-top: 1px solid rgba(255,255,255,0.12);
+}
+
+.logout-button {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.08);
   color: #fff;
   font-weight: 700;
   cursor: pointer;
+  font-size: 13px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.logout-button:hover {
+  background: rgba(255,255,255,0.18);
 }
 
 .content {
   padding: 32px;
+  overflow-y: auto;
 }
 
 .hero-card,
@@ -331,6 +399,13 @@ const apotikUnits = computed(() => {
   margin-bottom: 0;
 }
 
+.hero-kicker {
+  margin: 0 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+}
+
 .metrics-grid {
   margin-top: 20px;
   display: grid;
@@ -347,6 +422,12 @@ const apotikUnits = computed(() => {
   margin-top: 8px;
   font-size: 20px;
   color: #304b73;
+}
+
+.metric-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
 }
 
 .roadmap-card {
