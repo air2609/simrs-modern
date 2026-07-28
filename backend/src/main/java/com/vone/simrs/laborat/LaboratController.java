@@ -130,6 +130,50 @@ public class LaboratController {
         return ApiResponse.ok(laboratService.cancelNote(noteId, requestBody, username));
     }
 
+    // ===================== SC0043 — HASIL PEMERIKSAAN LAB =====================
+
+    @GetMapping("/results")
+    public ApiResponse<List<LaboratResultSummaryResponse>> searchResults(
+            @RequestParam(required = false) String resultCode,
+            @RequestParam(required = false) String patientName,
+            HttpServletRequest request) {
+        ensureAuthenticated(request.getSession(false));
+        return ApiResponse.ok(laboratService.searchLabResults(resultCode, patientName));
+    }
+
+    @GetMapping("/results/{resultId}")
+    public ApiResponse<LaboratResultDetailResponse> resultDetail(
+            @PathVariable Integer resultId,
+            HttpServletRequest request) {
+        ensureAuthenticated(request.getSession(false));
+        return ApiResponse.ok(laboratService.getLabResultDetail(resultId));
+    }
+
+    @GetMapping("/notes/{noteId}/result-items")
+    public ApiResponse<List<LaboratResultItemResponse>> resultItems(
+            @PathVariable Integer noteId,
+            HttpServletRequest request) {
+        ensureAuthenticated(request.getSession(false));
+        return ApiResponse.ok(laboratService.getResultItemsForNote(noteId));
+    }
+
+    @PostMapping("/results")
+    public ApiResponse<LaboratResultSaveResultResponse> createResult(
+            @Valid @RequestBody LaboratResultSaveRequest requestBody,
+            HttpServletRequest request) {
+        String username = ensureAuthenticated(request.getSession(false));
+        return ApiResponse.ok(laboratService.createLabResult(requestBody, username));
+    }
+
+    @PutMapping("/results/{resultId}")
+    public ApiResponse<LaboratResultSaveResultResponse> updateResult(
+            @PathVariable Integer resultId,
+            @Valid @RequestBody LaboratResultSaveRequest requestBody,
+            HttpServletRequest request) {
+        String username = ensureAuthenticated(request.getSession(false));
+        return ApiResponse.ok(laboratService.updateLabResult(resultId, requestBody, username));
+    }
+
     private String ensureAuthenticated(HttpSession session) {
         return laboratService.requireUsername(session);
     }

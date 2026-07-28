@@ -10,6 +10,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import javax.servlet.http.HttpSession;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -359,13 +360,15 @@ public class LaboratService {
     public List<LaboratNoteSummaryResponse> searchNotes(Integer unitId, String noteNumber, String patientName) {
         StringBuilder sql = new StringBuilder(
             "select e.n_exam_id, e.v_note_no, p.v_patient_name, e.n_exam_status, "
-                + "case when e.n_exam_status = 0 then 'BARU' when e.n_exam_status = 1 then 'VALID' else 'BATAL' end as status_label, "
+                + "case when e.n_exam_status = 1 then 'BARU' when e.n_exam_status = 2 then 'VALID' else 'BATAL' end as status_label, "
                 + "to_char(e.d_whn_create, 'DD-MM-YYYY HH24:MI') as created_at "
                 + "from tb_examination e join ms_patient p on p.n_patient_id = e.n_patient_id ");
         if (unitId != null) sql.append("and e.n_unit_id = ? ");
-        sql.append("where e.n_exam_status >= 0 ");
+        sql.append("where (e.n_exam_status = ? or e.n_exam_status = ?) ");
         List<Object> params = new ArrayList<>();
         if (unitId != null) params.add(unitId);
+        params.add(NOTE_ACTIVE);
+        params.add(NOTE_VALIDATED);
         if (noteNumber != null && !noteNumber.trim().isEmpty()) {
             sql.append("and upper(e.v_note_no) like ? ");
             params.add("%" + noteNumber.trim().toUpperCase() + "%");
@@ -387,7 +390,7 @@ public class LaboratService {
         try {
             return jdbc.queryForObject(
                 "select e.n_exam_id, e.v_note_no, e.n_exam_status, "
-                    + "case when e.n_exam_status = 0 then 'BARU' when e.n_exam_status = 1 then 'VALID' else 'BATAL' end as status_label, "
+                    + "case when e.n_exam_status = 1 then 'BARU' when e.n_exam_status = 2 then 'VALID' else 'BATAL' end as status_label, "
                     + "p.v_patient_name, mr.v_mr_code, coalesce(r.v_reg_secondary_id, '-') as reg_code, "
                     + "coalesce(e.n_total_amount, 0) as total_amount "
                     + "from tb_examination e "
@@ -625,5 +628,240 @@ public class LaboratService {
 
     private String normalizeActor(String username) {
         return username == null ? "SYSTEM" : username.trim().toUpperCase(Locale.ROOT);
+    }
+
+    // ===================== SC0043 — HASIL PEMERIKSAAN LAB =====================
+
+    public List<LaboratResultSummaryResponse> searchLabResults(String resultCode, String patientName) {
+        StringBuilder sql = new StringBuilder(
+            "select lr.n_lab_rslt_id, lr.v_lab_rslt_code, e.v_note_no, "
+                + "p.v_patient_name, mr.v_mr_code, "
+                + "to_char(lr.d_whn_create, 'DD-MM-YYYY HH24:MI') as created_at, "
+                + "coalesce(lr.v_who_create, '-') as created_by "
+                + "from tb_laboratory_result lr "
+                + "join tb_examination e on e.n_exam_id = lr.n_exam_id "
+                + "join ms_patient p on p.n_patient_id = e.n_patient_id "
+                + "left join tb_medical_record mr on mr.n_patient_id = p.n_patient_id "
+                + "where 1=1 ");
+        List<Object> params = new ArrayList<>();
+        if (resultCode != null && !resultCode.trim().isEmpty()) {
+            sql.append("and upper(lr.v_lab_rslt_code) like ? ");
+            params.add("%" + resultCode.trim().toUpperCase(Locale.ROOT) + "%");
+        }
+        if (patientName != null && !patientName.trim().isEmpty()) {
+            sql.append("and upper(p.v_patient_name) like ? ");
+            params.add("%" + patientName.trim().toUpperCase(Locale.ROOT) + "%");
+        }
+        sql.append("order by lr.d_whn_create desc limit 50");
+        return jdbc.query(sql.toString(),
+            (rs, row) -> new LaboratResultSummaryResponse(
+                rs.getInt("n_lab_rslt_id"), rs.getString("v_lab_rslt_code"),
+                rs.getString("v_note_no"), rs.getString("v_patient_name"),
+                rs.getString("v_mr_code"), rs.getString("created_at"),
+                rs.getString("created_by")),
+            params.toArray());
+    }
+
+
+
+    public LaboratResultDetailResponse getLabResultDetail(Integer resultId) {
+        try {
+            Map<String, Object> h = jdbc.queryForMap(
+                "select lr.n_lab_rslt_id, lr.v_lab_rslt_code, lr.n_exam_id, "
+                    + "e.v_note_no, p.v_patient_name, mr.v_mr_code, "
+                    + "coalesce(r.v_reg_secondary_id, '-') as reg_code, "
+                    + "coalesce(doc.v_staff_name, '-') as doctor_name, "
+                    + "coalesce(unt.v_unit_name, '-') as hall, "
+                    + "coalesce(bed.v_bed_code, '-') as bed, "
+                    + "coalesce(lr.v_jam, '') as take_time, "
+                    + "coalesce(lr.v_dr_pengirim, '') as escort_doctor, "
+                    + "coalesce(lr.v_resep, '') as laborat_no "
+                    + "from tb_laboratory_result lr "
+                    + "join tb_examination e on e.n_exam_id = lr.n_exam_id "
+                    + "join ms_patient p on p.n_patient_id = e.n_patient_id "
+                    + "left join tb_medical_record mr on mr.n_patient_id = p.n_patient_id "
+                    + "left join tb_registration r on r.n_reg_id = e.n_reg_id "
+                    + "left join ms_staff doc on doc.n_staff_id = e.n_escort_id "
+                    + "left join ms_unit unt on unt.n_unit_id = e.n_unit_id "
+                    + "left join tb_bed_occupancy bo on bo.n_reg_id = e.n_reg_id and bo.d_end_date is null "
+                    + "left join ms_bed bed on bed.n_bed_id = bo.n_bed_id "
+                    + "where lr.n_lab_rslt_id = ?", resultId);
+            List<LaboratResultItemResponse> items = getLabResultItems(resultId);
+            return new LaboratResultDetailResponse(
+                (Integer) h.get("n_lab_rslt_id"), (String) h.get("v_lab_rslt_code"),
+                (Integer) h.get("n_exam_id"), (String) h.get("v_note_no"),
+                (String) h.get("v_patient_name"), (String) h.get("v_mr_code"),
+                (String) h.get("reg_code"), (String) h.get("doctor_name"),
+                (String) h.get("hall"), (String) h.get("bed"),
+                (String) h.get("take_time"), (String) h.get("escort_doctor"),
+                (String) h.get("laborat_no"), items, true);
+        } catch (EmptyResultDataAccessException e) {
+            throw new IllegalArgumentException("Hasil lab tidak ditemukan.");
+        }
+    }
+
+    private List<LaboratResultItemResponse> getLabResultItems(Integer resultId) {
+        return jdbc.query(
+            "select lrd.n_lab_rslt_det_id, lrd.n_treatment_id, t.v_treatment_name, "
+                + "coalesce(det.v_detail_name, t.v_treatment_name) as detail_name, "
+                + "coalesce(g.v_tgroup_name, '-') as group_name, "
+                + "coalesce(lrd.v_lab_rslt_desc, '') as result_desc, "
+                + "coalesce(lrd.v_nrml_range_man, coalesce(det.v_normal_range, '-')) as range_man, "
+                + "coalesce(lrd.v_nrml_range_woman, '-') as range_woman, "
+                + "coalesce(lrd.v_lab_rslt_quantify, coalesce(det.v_quantify, '-')) as qty_unit, "
+                + "lrd.n_lab_detil_id "
+                + "from tb_laboratory_result_detail lrd "
+                + "join ms_treatment t on t.n_treatment_id = lrd.n_treatment_id "
+                + "left join ms_treatment_group g on g.n_tgroup_id = t.n_tgroup_id "
+                + "left join ms_lab_treatment_detil det on det.n_lab_detil_id = lrd.n_lab_detil_id "
+                + "where lrd.n_lab_rslt_id = ? "
+                + "order by g.n_tgroup_id, t.v_treatment_name, det.n_lab_detil_id",
+            (rs, row) -> new LaboratResultItemResponse(
+                rs.getInt("n_lab_rslt_det_id"), rs.getInt("n_treatment_id"),
+                rs.getString("v_treatment_name"), rs.getString("detail_name"),
+                rs.getString("group_name"), rs.getString("result_desc"),
+                rs.getString("range_man"), rs.getString("range_woman"),
+                rs.getString("qty_unit"),
+                rs.getObject("n_lab_detil_id") != null ? rs.getInt("n_lab_detil_id") : null),
+            resultId);
+    }
+
+    public List<LaboratResultItemResponse> getResultItemsForNote(Integer noteId) {
+        // Hanya treatment dari grup LAB (bukan NON-PAKET)
+        List<LaboratResultItemResponse> items = jdbc.query(
+            "select distinct t.n_treatment_id, t.v_treatment_name, "
+                + "g.n_tgroup_id, coalesce(g.v_tgroup_name, '-') as group_name "
+                + "from tb_treatment_trx tt "
+                + "join ms_treatment_fee tf on tf.n_treatment_fee_id = tt.n_treatment_fee_id "
+                + "join ms_treatment t on t.n_treatment_id = tf.n_treatment_id "
+                + "left join ms_treatment_group g on g.n_tgroup_id = t.n_tgroup_id "
+                + "where tt.n_note_id = ? "
+                + "and (g.v_tgroup_name is null or upper(g.v_tgroup_name) <> 'NON-PAKET') "
+                + "order by g.n_tgroup_id, t.v_treatment_name",
+            (rs, row) -> new LaboratResultItemResponse(
+                null, rs.getInt("n_treatment_id"),
+                rs.getString("v_treatment_name"), rs.getString("v_treatment_name"),
+                rs.getString("group_name"), "", "-", "-", "-", null), noteId);
+        List<LaboratResultItemResponse> result = new ArrayList<>();
+        for (LaboratResultItemResponse item : items) {
+            List<LaboratResultItemResponse> dets = jdbc.query(
+                "select det.n_lab_detil_id, det.v_detail_name, det.v_quantify, det.v_normal_range "
+                    + "from ms_lab_treatment_detil det where det.n_treatment_id = ? order by det.n_lab_detil_id",
+                (rs, row) -> new LaboratResultItemResponse(
+                    null, item.getTreatmentId(), item.getTreatmentName(),
+                    rs.getString("v_detail_name"), item.getGroupName(), "",
+                    rs.getString("v_normal_range") != null ? rs.getString("v_normal_range") : "-",
+                    "-",
+                    rs.getString("v_quantify") != null ? rs.getString("v_quantify") : "-",
+                    rs.getInt("n_lab_detil_id")),
+                item.getTreatmentId());
+            if (dets.isEmpty()) result.add(item);
+            else result.addAll(dets);
+        }
+        return result;
+    }
+
+    private String generateLabResultCode() {
+        String prefix = "LR-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyMM"));
+        Integer seq = nextVal("tb_laboratory_result_n_lab_rslt_id_seq");
+        return prefix + "-" + String.format("%04d", seq % 10000);
+    }
+
+
+    @Transactional
+    public LaboratResultSaveResultResponse createLabResult(LaboratResultSaveRequest req, String username) {
+        String actor = normalizeActor(username);
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+        Integer examId = req.getExamId();
+        try {
+            jdbc.queryForObject("select n_exam_id from tb_examination where n_exam_id = ?", Integer.class, examId);
+        } catch (EmptyResultDataAccessException e) {
+            throw new IllegalArgumentException("Nota examination tidak ditemukan.");
+        }
+        Integer existingId = null;
+        try {
+            existingId = jdbc.queryForObject(
+                "select n_lab_rslt_id from tb_laboratory_result where n_exam_id = ? limit 1", Integer.class, examId);
+        } catch (EmptyResultDataAccessException e) { /* ok */ }
+        if (existingId != null)
+            throw new IllegalStateException("Hasil lab sudah ada. Gunakan fitur Ubah.");
+        Integer resultId = nextVal("tb_laboratory_result_n_lab_rslt_id_seq");
+        String resultCode = generateLabResultCode();
+        jdbc.update(
+            "insert into tb_laboratory_result (n_lab_rslt_id, n_exam_id, v_lab_rslt_code, "
+                + "v_jam, v_dr_pengirim, v_resep, v_who_create, d_whn_create) "
+                + "values (?, ?, ?, ?, ?, ?, ?, ?)",
+            resultId, examId, resultCode, req.getTakeTime(), req.getEscortDoctor(),
+            req.getLaboratNo(), actor, now);
+        if (req.getLines() != null) {
+            for (LaboratResultLineRequest line : req.getLines()) {
+                if (line.getResultDescription() == null || line.getResultDescription().trim().isEmpty()) continue;
+                Integer detId = nextVal("tb_laboratory_result_detail_n_lab_rslt_det_id_seq");
+                jdbc.update(
+                    "insert into tb_laboratory_result_detail (n_lab_rslt_det_id, n_lab_rslt_id, n_treatment_id, "
+                        + "v_lab_rslt_desc, v_nrml_range_man, v_nrml_range_woman, v_lab_rslt_quantify, "
+                        + "n_lab_detil_id, v_who_create, d_whn_create) "
+                        + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    detId, resultId, line.getTreatmentId(), line.getResultDescription(),
+                    line.getNormalRangeMan(), line.getNormalRangeWoman(), line.getQuantityUnit(),
+                    line.getLabDetilId(), actor, now);
+            }
+        }
+        return new LaboratResultSaveResultResponse(resultId, resultCode, "Hasil lab berhasil disimpan.");
+    }
+
+    @Transactional
+    public LaboratResultSaveResultResponse updateLabResult(Integer resultId, LaboratResultSaveRequest req,
+            String username) {
+        String actor = normalizeActor(username);
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+        try {
+            jdbc.queryForObject(
+                "select n_lab_rslt_id from tb_laboratory_result where n_lab_rslt_id = ?",
+                Integer.class, resultId);
+        } catch (EmptyResultDataAccessException e) {
+            throw new IllegalArgumentException("Hasil lab tidak ditemukan.");
+        }
+        jdbc.update(
+            "update tb_laboratory_result set v_jam = ?, v_dr_pengirim = ?, v_resep = ?, "
+                + "v_who_change = ?, d_whn_change = ? where n_lab_rslt_id = ?",
+            req.getTakeTime(), req.getEscortDoctor(), req.getLaboratNo(), actor, now, resultId);
+        List<Integer> existingDetIds = jdbc.queryForList(
+            "select n_lab_rslt_det_id from tb_laboratory_result_detail where n_lab_rslt_id = ?",
+            Integer.class, resultId);
+        java.util.Set<Integer> keptIds = new java.util.HashSet<>();
+        if (req.getLines() != null) {
+            for (LaboratResultLineRequest line : req.getLines()) {
+                if (line.getResultDescription() == null || line.getResultDescription().trim().isEmpty()) continue;
+                if (line.getDetailId() != null && existingDetIds.contains(line.getDetailId())) {
+                    jdbc.update(
+                        "update tb_laboratory_result_detail set v_lab_rslt_desc = ?, "
+                            + "v_nrml_range_man = ?, v_nrml_range_woman = ?, v_lab_rslt_quantify = ?, "
+                            + "v_who_change = ?, d_whn_change = ? where n_lab_rslt_det_id = ?",
+                        line.getResultDescription(), line.getNormalRangeMan(),
+                        line.getNormalRangeWoman(), line.getQuantityUnit(), actor, now, line.getDetailId());
+                    keptIds.add(line.getDetailId());
+                } else {
+                    Integer detId = nextVal("tb_laboratory_result_detail_n_lab_rslt_det_id_seq");
+                    jdbc.update(
+                        "insert into tb_laboratory_result_detail (n_lab_rslt_det_id, n_lab_rslt_id, n_treatment_id, "
+                            + "v_lab_rslt_desc, v_nrml_range_man, v_nrml_range_woman, v_lab_rslt_quantify, "
+                            + "n_lab_detil_id, v_who_create, d_whn_create) "
+                            + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        detId, resultId, line.getTreatmentId(), line.getResultDescription(),
+                        line.getNormalRangeMan(), line.getNormalRangeWoman(), line.getQuantityUnit(),
+                        line.getLabDetilId(), actor, now);
+                    keptIds.add(detId);
+                }
+            }
+        }
+        for (Integer detId : existingDetIds) {
+            if (!keptIds.contains(detId))
+                jdbc.update("delete from tb_laboratory_result_detail where n_lab_rslt_det_id = ?", detId);
+        }
+        String resultCode = jdbc.queryForObject(
+            "select v_lab_rslt_code from tb_laboratory_result where n_lab_rslt_id = ?",
+            String.class, resultId);
+        return new LaboratResultSaveResultResponse(resultId, resultCode, "Hasil lab berhasil diubah.");
     }
 }

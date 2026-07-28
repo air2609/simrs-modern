@@ -6,6 +6,7 @@ import JournalSection from './JournalSection.vue';
 import LocationMasterSection from './LocationMasterSection.vue';
 import LabTreatmentMasterSection from './LabTreatmentMasterSection.vue';
 import LaboratoryTransactionSection from './LaboratoryTransactionSection.vue';
+import LaboratoryResultSection from './LaboratoryResultSection.vue';
 import PolyclinicSection from './PolyclinicSection.vue';
 
 const props = defineProps({
@@ -33,6 +34,7 @@ const screenViewMap = {
   'SC0011': 'apotik',
   'SC0091': 'polyclinic',
   'SC0041': 'laboratory-transaction',
+  'SC0043': 'laboratory-result',
   'SC0201': 'journal',
   'SCM0051': 'lab-treatment-master',
   'SCM0013': 'location-master',
@@ -67,6 +69,7 @@ function screenIcon(screenCode) {
     'SC0011': '💊',
     'SC0091': '🩺',
     'SC0041': '🧪',
+    'SC0043': '📊',
     'SC0201': '📒',
     'SCM0051': '🔬',
     'SCM0013': '📍',
@@ -223,6 +226,12 @@ const apotikUnits = computed(() => {
 
       <LaboratoryTransactionSection
         v-else-if="selectedView === 'laboratory-transaction'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <LaboratoryResultSection
+        v-else-if="selectedView === 'laboratory-result'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
       />
