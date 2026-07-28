@@ -23,6 +23,14 @@ spring:
             non_contextual_creation: true
         implicit_naming_strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl
         physical_naming_strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+  devtools:
+    livereload:
+      enabled: true
+    restart:
+      enabled: true
+      additional-paths: src/main/java
+      poll-interval: 1000
+      quiet-period: 400
 
 server:
   port: ${SERVER_PORT:9090}

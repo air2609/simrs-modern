@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import AdmissionRegistrationSection from './AdmissionRegistrationSection.vue';
 import ApotikSection from './ApotikSection.vue';
+import JournalSection from './JournalSection.vue';
 import LocationMasterSection from './LocationMasterSection.vue';
 import PolyclinicSection from './PolyclinicSection.vue';
 
@@ -114,6 +115,9 @@ const apotikUnits = computed(() => {
             <button v-if="hasLocationMasterAccess" class="nav-button" type="button" @click="selectedView = 'location-master'">
               Master Wilayah
             </button>
+            <button class="nav-button" type="button" @click="selectedView = 'journal'">
+              📒 Open Journal
+            </button>
           </div>
         </section>
 
@@ -194,6 +198,12 @@ const apotikUnits = computed(() => {
 
       <PolyclinicSection
         v-else-if="selectedView === 'polyclinic'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <JournalSection
+        v-else-if="selectedView === 'journal'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
       />

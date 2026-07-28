@@ -336,7 +336,11 @@ public class ApotikService {
         }
         UnitRow unit = findUnit(request.getUnitId());
         Timestamp now = new Timestamp(System.currentTimeMillis());
+
+        // Restore inventory untuk item lama sebelum di-delete (sama seperti legacy)
+        restoreNoteInventory(noteId, unit.getWarehouseId());
         deleteNoteLines(noteId);
+
         double totalAmount = calculateTotalAmount(request.getLines());
 
         jdbcTemplate.update(
@@ -358,7 +362,9 @@ public class ApotikService {
         }
         UnitRow unit = findUnit(header.getUnitId());
         Timestamp now = new Timestamp(System.currentTimeMillis());
-        validateInventory(noteId, unit.getWarehouseId());
+
+        // Inventory sudah di-deduct saat save (sama seperti legacy),
+        // validasi hanya membuat journal entry dan mengubah status.
 
         jdbcTemplate.update(
             "update tb_examination set n_exam_status = ?, d_whn_change = ?, v_who_change = ? "
@@ -378,10 +384,12 @@ public class ApotikService {
             throw new IllegalStateException("Nota sudah dibatalkan.");
         }
         Timestamp now = new Timestamp(System.currentTimeMillis());
-        if (header.getStatusCode() == NOTE_VALIDATED) {
-            UnitRow unit = findUnit(header.getUnitId());
-            restoreInventoryOnCancel(noteId, unit.getWarehouseId());
-        }
+        UnitRow unit = findUnit(header.getUnitId());
+
+        // Restore inventory untuk semua status (ACTIVE maupun VALIDATED)
+        // karena inventory sudah di-deduct saat save (sama seperti legacy)
+        restoreNoteInventory(noteId, unit.getWarehouseId());
+
         jdbcTemplate.update(
             "update tb_examination set n_exam_status = ?, v_cancelation_note = ?, "
                 + "d_whn_change = ?, v_who_change = ? where n_exam_id = ?",
@@ -747,34 +755,137 @@ public class ApotikService {
                                 Integer warehouseId, String username, Timestamp now) {
         for (ApotikLineItemRequest line : lines) {
             if (LINE_TYPE_ITEM.equals(line.getLineType())) {
-                saveItemLine(noteId, line, username, now);
+                saveItemLine(noteId, line, warehouseId, username, now);
             } else if (LINE_TYPE_COMPOUND.equals(line.getLineType())) {
-                saveCompoundLine(noteId, line, username, now);
+                saveCompoundLine(noteId, line, warehouseId, username, now);
             } else if (LINE_TYPE_MISC.equals(line.getLineType())) {
                 saveMiscLine(noteId, line, username, now);
             }
         }
     }
 
-    private void saveItemLine(Integer noteId, ApotikLineItemRequest line, String username, Timestamp now) {
+    private void saveItemLine(Integer noteId, ApotikLineItemRequest line,
+                              Integer warehouseId, String username, Timestamp now) {
         double qty = line.getQuantity() != null ? line.getQuantity() : 0;
         double price = line.getUnitPrice() != null ? line.getUnitPrice() : 0;
         double amountBeforeDisc = qty * price;
         double discAmount = calculateDiscount(amountBeforeDisc, line.getDiscountType(), line.getDiscountValue());
         double amountAfterDisc = amountBeforeDisc - discAmount;
         String discType = normalizeDiscountType(line.getDiscountType());
+
+        // Sama persis dengan legacy: loop semua batch yang punya stok
+        double remaining = qty;
+        double perUnitHarga = qty == 0 ? 0 : amountBeforeDisc / qty;
+        double perUnitDisc = qty == 0 ? 0 : discAmount / qty;
+        double perUnitAfterDisc = qty == 0 ? 0 : amountAfterDisc / qty;
+
+        List<InventoryBatchRow> inventories = findItemInventories(warehouseId, line.getReferenceId());
+        for (InventoryBatchRow inv : inventories) {
+            if (remaining <= 0) break;
+
+            double picked = Math.min(remaining, inv.getQuantity());
+
+            jdbcTemplate.update(
+                "insert into tb_item_trx (n_note_id, n_item_id, n_batch_id, n_qty, "
+                    + "n_amount_trx, n_disc_amount, v_disc_type, n_amount_after_disc, "
+                    + "aturan_pakai, d_whn_create, v_who_create) "
+                    + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                noteId, line.getReferenceId(), inv.getBatchId(), picked,
+                picked * perUnitHarga, picked * perUnitDisc, discType, picked * perUnitAfterDisc,
+                normalizeOptional(line.getInstruction()), now, username
+            );
+
+            // Deduct inventory per batch (sama persis seperti legacy)
+            deductInventory(line.getReferenceId(), inv.getBatchId(), warehouseId, picked);
+            remaining -= picked;
+        }
+
+        if (remaining > 0) {
+            throw new IllegalStateException(
+                "Stok item id " + line.getReferenceId() + " tidak mencukupi."
+            );
+        }
+    }
+
+    /**
+     * Deduct inventory untuk item tertentu di batch & warehouse.
+     */
+    private void deductInventory(Integer itemId, Integer batchId, Integer warehouseId, double qty) {
         jdbcTemplate.update(
-            "insert into tb_item_trx (n_note_id, n_item_id, n_qty, "
-                + "n_amount_trx, n_disc_amount, v_disc_type, n_amount_after_disc, "
-                + "aturan_pakai, d_whn_create, v_who_create) "
-                + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            noteId, line.getReferenceId(), (float) qty,
-            amountBeforeDisc, discAmount, discType, amountAfterDisc,
-            normalizeOptional(line.getInstruction()), now, username
+            "update tb_item_inventory set n_item_inv_qty = n_item_inv_qty - ? "
+                + "where n_item_id = ? and n_batch_id = ? and n_whouse_id = ?",
+            qty, itemId, batchId, warehouseId
         );
     }
 
-    private void saveCompoundLine(Integer noteId, ApotikLineItemRequest line, String username, Timestamp now) {
+    /**
+     * Restore inventory untuk item tertentu (undo deduct).
+     */
+    private void restoreInventory(Integer itemId, Integer batchId, Integer warehouseId, double qty) {
+        jdbcTemplate.update(
+            "update tb_item_inventory set n_item_inv_qty = n_item_inv_qty + ? "
+                + "where n_item_id = ? and n_batch_id = ? and n_whouse_id = ?",
+            qty, itemId, batchId, warehouseId
+        );
+    }
+
+    /**
+     * Restore inventory untuk semua item trx dan compound ingredients pada suatu nota.
+     */
+    private void restoreNoteInventory(Integer noteId, Integer warehouseId) {
+        // Restore item trx
+        List<InventoryBatchRow> itemRows = jdbcTemplate.query(
+            "select n_item_id, n_batch_id, n_qty from tb_item_trx where n_note_id = ?",
+            (resultSet, rowNum) -> new InventoryBatchRow(
+                resultSet.getInt("n_item_id"),
+                resultSet.getInt("n_batch_id"),
+                resultSet.getDouble("n_qty")
+            ),
+            noteId
+        );
+        for (InventoryBatchRow row : itemRows) {
+            restoreInventory(row.getItemId(), row.getBatchId(), warehouseId, row.getQuantity());
+        }
+
+        // Restore compound ingredients
+        List<InventoryBatchRow> compoundRows = jdbcTemplate.query(
+            "select det.n_item_id, det.n_batch_id, sum(det.n_dingr_det_qty * ingr.n_dingr_qty) as total_qty "
+                + "from tb_drug_ingredients_detail det "
+                + "join tb_drug_ingredients ingr on ingr.n_dingr_id = det.n_dingr_id "
+                + "where ingr.n_note_id = ? "
+                + "group by det.n_item_id, det.n_batch_id",
+            (resultSet, rowNum) -> new InventoryBatchRow(
+                resultSet.getInt("n_item_id"),
+                resultSet.getInt("n_batch_id"),
+                resultSet.getDouble("total_qty")
+            ),
+            noteId
+        );
+        for (InventoryBatchRow row : compoundRows) {
+            restoreInventory(row.getItemId(), row.getBatchId(), warehouseId, row.getQuantity());
+        }
+    }
+
+    /**
+     * Cari semua inventory batch untuk item tertentu di warehouse.
+     * Sama persis seperti legacy yang loop semua batch yang punya stok.
+     */
+    private List<InventoryBatchRow> findItemInventories(Integer warehouseId, Integer itemId) {
+        return jdbcTemplate.query(
+            "select n_batch_id, n_item_inv_qty from tb_item_inventory "
+                + "where n_whouse_id = ? and n_item_id = ? and n_item_inv_qty > 0 "
+                + "order by n_batch_id",
+            (resultSet, rowNum) -> new InventoryBatchRow(
+                itemId,
+                resultSet.getInt("n_batch_id"),
+                resultSet.getDouble("n_item_inv_qty")
+            ),
+            warehouseId, itemId
+        );
+    }
+
+    private void saveCompoundLine(Integer noteId, ApotikLineItemRequest line,
+                                  Integer warehouseId, String username, Timestamp now) {
         double qty = line.getQuantity() != null ? line.getQuantity() : 0;
         double price = line.getUnitPrice() != null ? line.getUnitPrice() : 0;
         double amountBeforeDisc = qty * price;
@@ -802,11 +913,32 @@ public class ApotikService {
         if (line.getComponents() != null) {
             for (ApotikCompoundComponentRequest comp : line.getComponents()) {
                 if (comp.getReferenceId() == null || comp.getQuantity() == null) continue;
-                jdbcTemplate.update(
-                    "insert into tb_drug_ingredients_detail (n_dingr_id, n_item_id, "
-                        + "n_dingr_det_qty, d_whn_create, v_who_create) values (?, ?, ?, ?, ?)",
-                    compoundId, comp.getReferenceId(), comp.getQuantity(), now, username
-                );
+
+                // Sama persis dengan legacy: loop semua batch untuk tiap komponen racikan
+                double remainingComp = comp.getQuantity();
+                List<InventoryBatchRow> inventories = findItemInventories(warehouseId, comp.getReferenceId());
+
+                for (InventoryBatchRow inv : inventories) {
+                    if (remainingComp <= 0) break;
+
+                    double picked = Math.min(remainingComp, inv.getQuantity());
+
+                    jdbcTemplate.update(
+                        "insert into tb_drug_ingredients_detail (n_dingr_id, n_item_id, n_batch_id, "
+                            + "n_dingr_det_qty, d_whn_create, v_who_create) values (?, ?, ?, ?, ?, ?)",
+                        compoundId, comp.getReferenceId(), inv.getBatchId(), picked, now, username
+                    );
+
+                    // Deduct inventory per batch (sama persis seperti legacy)
+                    deductInventory(comp.getReferenceId(), inv.getBatchId(), warehouseId, picked);
+                    remainingComp -= picked;
+                }
+
+                if (remainingComp > 0) {
+                    throw new IllegalStateException(
+                        "Stok komponen item id " + comp.getReferenceId() + " tidak mencukupi untuk racikan."
+                    );
+                }
             }
         }
     }
@@ -955,88 +1087,6 @@ public class ApotikService {
         }
     }
 
-    private void validateInventory(Integer noteId, Integer warehouseId) {
-        List<InventoryRow> items = jdbcTemplate.query(
-            "select trx.n_item_id, sum(trx.n_qty) as total_qty "
-                + "from tb_item_trx trx where trx.n_note_id = ? "
-                + "group by trx.n_item_id",
-            (resultSet, rowNum) -> new InventoryRow(
-                resultSet.getInt("n_item_id"),
-                resultSet.getDouble("total_qty"),
-                0
-            ),
-            noteId
-        );
-        for (InventoryRow row : items) {
-            jdbcTemplate.update(
-                "update tb_item_inventory set n_item_inv_qty = n_item_inv_qty - ? "
-                    + "where n_item_id = ? and n_whouse_id = ?",
-                row.getTotalQuantity(), row.getItemId(), warehouseId
-            );
-        }
-        List<InventoryRow> compoundItems = jdbcTemplate.query(
-            "select det.n_item_id, sum(det.n_dingr_det_qty * ingr.n_dingr_qty) as total_qty "
-                + "from tb_drug_ingredients_detail det "
-                + "join tb_drug_ingredients ingr on ingr.n_dingr_id = det.n_dingr_id "
-                + "where ingr.n_note_id = ? "
-                + "group by det.n_item_id",
-            (resultSet, rowNum) -> new InventoryRow(
-                resultSet.getInt("n_item_id"),
-                resultSet.getDouble("total_qty"),
-                0
-            ),
-            noteId
-        );
-        for (InventoryRow row : compoundItems) {
-            jdbcTemplate.update(
-                "update tb_item_inventory set n_item_inv_qty = n_item_inv_qty - ? "
-                    + "where n_item_id = ? and n_whouse_id = ?",
-                row.getTotalQuantity(), row.getItemId(), warehouseId
-            );
-        }
-    }
-
-    private void restoreInventoryOnCancel(Integer noteId, Integer warehouseId) {
-        List<InventoryRow> items = jdbcTemplate.query(
-            "select trx.n_item_id, sum(trx.n_qty) as total_qty "
-                + "from tb_item_trx trx where trx.n_note_id = ? "
-                + "group by trx.n_item_id",
-            (resultSet, rowNum) -> new InventoryRow(
-                resultSet.getInt("n_item_id"),
-                resultSet.getDouble("total_qty"),
-                0
-            ),
-            noteId
-        );
-        for (InventoryRow row : items) {
-            jdbcTemplate.update(
-                "update tb_item_inventory set n_item_inv_qty = n_item_inv_qty + ? "
-                    + "where n_item_id = ? and n_whouse_id = ?",
-                row.getTotalQuantity(), row.getItemId(), warehouseId
-            );
-        }
-        List<InventoryRow> compoundItems = jdbcTemplate.query(
-            "select det.n_item_id, sum(det.n_dingr_det_qty * ingr.n_dingr_qty) as total_qty "
-                + "from tb_drug_ingredients_detail det "
-                + "join tb_drug_ingredients ingr on ingr.n_dingr_id = det.n_dingr_id "
-                + "where ingr.n_note_id = ? "
-                + "group by det.n_item_id",
-            (resultSet, rowNum) -> new InventoryRow(
-                resultSet.getInt("n_item_id"),
-                resultSet.getDouble("total_qty"),
-                0
-            ),
-            noteId
-        );
-        for (InventoryRow row : compoundItems) {
-            jdbcTemplate.update(
-                "update tb_item_inventory set n_item_inv_qty = n_item_inv_qty + ? "
-                    + "where n_item_id = ? and n_whouse_id = ?",
-                row.getTotalQuantity(), row.getItemId(), warehouseId
-            );
-        }
-    }
-
     private double calculateTotalAmount(List<ApotikLineItemRequest> lines) {
         double total = 0;
         for (ApotikLineItemRequest line : lines) {
@@ -1178,7 +1228,7 @@ public class ApotikService {
             insertJournal(batchId, voucherNo, m, totalCogs, 0, now, username, coaInvId);
         }
         // MISC lines
-        Integer coaMiscId = findCoaIdByGimKey("COA_DEFAULT_MISC_TRX");
+        Integer coaMiscId = findCoaIdByGimKey("COA_MISC_TRX");
         if (coaMiscId == null) throw new IllegalStateException("COA misc belum dikonfigurasi.");
         for (JournalMiscLine misc : getMiscLinesForJournal(noteId)) {
             String m = "MISC:" + misc.miscName + ";QTY:" + misc.qty;
@@ -1435,18 +1485,6 @@ public class ApotikService {
         String getRegistrationCode() { return registrationCode; }
     }
 
-    private static class InventoryRow {
-        private final Integer itemId; private final double totalQuantity;
-        private final double currentStock;
-        InventoryRow(Integer itemId, double totalQuantity, double currentStock) {
-            this.itemId = itemId; this.totalQuantity = totalQuantity;
-            this.currentStock = currentStock;
-        }
-        Integer getItemId() { return itemId; }
-        double getTotalQuantity() { return totalQuantity; }
-        double getCurrentStock() { return currentStock; }
-    }
-
     private static class InventoryRestoreRow {
         private final Integer itemId; private final double quantity;
         private final double currentStock;
@@ -1456,5 +1494,25 @@ public class ApotikService {
         Integer getItemId() { return itemId; }
         double getQuantity() { return quantity; }
         double getCurrentStock() { return currentStock; }
+    }
+
+    /**
+     * Inventory batch row used for batch-aware inventory operations.
+     * Mirrors the approach used in PolyclinicService for handling batch_id.
+     */
+    private static class InventoryBatchRow {
+        private final Integer itemId;
+        private final Integer batchId;
+        private final double quantity;
+
+        InventoryBatchRow(Integer itemId, Integer batchId, double quantity) {
+            this.itemId = itemId;
+            this.batchId = batchId;
+            this.quantity = quantity;
+        }
+
+        Integer getItemId() { return itemId; }
+        Integer getBatchId() { return batchId; }
+        double getQuantity() { return quantity; }
     }
 }

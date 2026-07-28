@@ -5,7 +5,8 @@ const props = defineProps({
   apiBaseUrl: {
     type: String,
     required: true
-  }
+  },
+  availableUnits: { type: Array, default: () => [] }
 });
 
 const emit = defineEmits(['session-expired']);
@@ -18,6 +19,10 @@ const treatmentSearching = ref(false);
 const itemSearching = ref(false);
 const statusMessage = ref('');
 const errorMessage = ref('');
+
+const searchMode = ref('patient'); // 'patient' or 'note'
+const selectedPatient = ref(null);
+const showSearch = ref(true);
 
 const masters = reactive({
   units: [],
@@ -140,19 +145,22 @@ function normalizeDiscountType(discountType) {
 function calculateSubtotal(line) {
   const amount = Number(line.unitPrice || 0) * Number(line.quantity || 0);
   const discountValue = Number(line.discountValue || 0);
+  let result;
 
   if (normalizeDiscountType(line.discountType) === '%') {
-    return amount - (amount * discountValue / 100);
+    result = amount - (amount * discountValue / 100);
+  } else {
+    result = amount - discountValue;
   }
 
-  return amount - discountValue;
+  return Math.ceil(result);
 }
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('id-ID', {
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 0,
     minimumFractionDigits: 0
-  }).format(Number(value || 0));
+  }).format(Math.ceil(Number(value || 0)));
 }
 
 function setSelectedDoctor(doctor) {
@@ -286,6 +294,7 @@ async function searchTreatments() {
     if (treatmentSearch.name) {
       params.set('name', treatmentSearch.name);
     }
+    params.set('tariffClass', 'KELAS II');
     treatmentResults.value = await request(`/polyclinic/units/${encodeURIComponent(form.unitId)}/treatments?${params.toString()}`);
   } catch (error) {
     errorMessage.value = error.message;
@@ -311,6 +320,7 @@ async function searchItems() {
     if (itemSearch.name) {
       params.set('name', itemSearch.name);
     }
+    params.set('tariffClass', 'KELAS II');
     itemResults.value = await request(`/polyclinic/units/${encodeURIComponent(form.unitId)}/items?${params.toString()}`);
   } catch (error) {
     errorMessage.value = error.message;
@@ -486,8 +496,6 @@ async function searchNotes() {
 }
 
 async function loadNoteDetail(noteId) {
-  resetMessages();
-
   try {
     const detail = await request(`/polyclinic/notes/${encodeURIComponent(noteId)}`);
     noteDetail.value = detail;
@@ -534,6 +542,19 @@ async function loadNoteDetail(noteId) {
   } catch (error) {
     errorMessage.value = error.message;
   }
+}
+
+function resetNoteSearch() {
+  noteSearch.noteNumber = '';
+  noteSearch.patientName = '';
+  noteResults.value = [];
+  noteDetail.value = null;
+  errorMessage.value = '';
+}
+
+async function selectExistingNote(noteId) {
+  searchMode.value = 'patient';
+  await loadNoteDetail(noteId);
 }
 
 async function validateNote() {
@@ -593,6 +614,82 @@ function startNewNote() {
   noteResults.value = [];
 }
 
+function switchSearchMode(mode) {
+  searchMode.value = mode;
+  errorMessage.value = '';
+}
+
+function toggleSearch() {
+  showSearch.value = !showSearch.value;
+}
+
+function resetSearch() {
+  patientSearch.mrCode = '';
+  patientSearch.patientName = '';
+  patientSearch.address = '';
+  registeredPatients.value = [];
+  selectedPatient.value = null;
+  showSearch.value = true;
+  errorMessage.value = '';
+}
+
+async function selectPatient(mrCode) {
+  try {
+    const unitId = form.unitId;
+    if (!unitId) {
+      errorMessage.value = 'Pilih LOKASI TRANSAKSI terlebih dahulu.';
+      return;
+    }
+    const res = await request(`/polyclinic/patients/${encodeURIComponent(mrCode)}?unitId=${unitId}`);
+    selectedPatient.value = res;
+    form.existingMrCode = mrCode;
+    form.registrationCode = res.registrationCode || '';
+    form.patientName = res.patientName;
+    form.gender = res.gender || 'M';
+    form.birthDate = res.birthDate || '';
+    form.address = res.address || '';
+    form.patientTypeId = res.patientTypeId ? String(res.patientTypeId) : '';
+    form.doctorId = res.doctorId ? String(res.doctorId) : '';
+    form.doctorLabel = res.doctorName || '';
+    showSearch.value = false;
+  } catch (e) {
+    errorMessage.value = e.message;
+  }
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+function calculateAge(birthDateStr) {
+  if (!birthDateStr) return '';
+  const birthDate = new Date(birthDateStr);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age + ' Thn';
+}
+
+function patientTypeName(typeId) {
+  if (!typeId) return '-';
+  const found = masters.patientTypes.find(pt => String(pt.patientTypeId) === String(typeId));
+  return found ? found.patientTypeName : '-';
+}
+
+function escortTypeName(escortId) {
+  if (!escortId) return '-';
+  const found = masters.escorts.find(e => String(e.escortId) === String(escortId));
+  return found ? found.escortType : '-';
+}
+
 onMounted(async () => {
   await loadMasters();
   await searchDoctors();
@@ -621,685 +718,481 @@ watch(
 </script>
 
 <template>
-  <section class="poli-page">
-    <header class="section-header">
+  <div class="poli-page">
+    <!-- Header -->
+    <div class="page-header">
       <div>
-        <p class="section-kicker">Poliklinik</p>
-        <h2>Transaksi Poliklinik</h2>
-        <p class="section-copy">
-          Migrasi form legacy SC0091 ke Vue dengan penyimpanan langsung ke tabel existing `tb_examination`, `tb_treatment_trx`,
-          `tb_item_trx`, dan `tb_misc_trx`.
-        </p>
+        <h2>🏥 Transaksi Poliklinik</h2>
+        <p class="page-subtitle">Migrasi form legacy SC0091 — input transaksi poliklinik rawat jalan</p>
       </div>
-      <div class="header-actions">
-        <button class="secondary-button" type="button" @click="startNewNote">Nota Baru</button>
-      </div>
-    </header>
+    </div>
 
+    <!-- Unit Selector -->
+    <div class="unit-bar">
+      <label class="unit-label">LOKASI TRANSAKSI</label>
+      <select v-model="form.unitId" class="unit-select">
+        <option value="">Pilih unit</option>
+        <option v-for="u in masters.units" :key="u.unitId" :value="String(u.unitId)">
+          {{ u.unitCode }}. {{ u.unitName }}
+        </option>
+      </select>
+    </div>
+
+    <!-- Notifications -->
     <p v-if="errorMessage" class="status-banner status-banner--error">{{ errorMessage }}</p>
     <p v-else-if="statusMessage" class="status-banner status-banner--success">{{ statusMessage }}</p>
 
-    <div v-if="loading" class="panel-card">Memuat master poliklinik...</div>
+    <div v-if="loading" class="loading">Memuat master poliklinik...</div>
 
     <template v-else>
-      <div class="layout-grid">
-        <section class="panel-card">
-          <button
-            class="section-toggle-button"
-            :class="{ 'section-toggle-button--active': drawerState.header }"
-            type="button"
-            @click="toggleDrawer('header')"
-          >
-            Header Transaksi
-          </button>
-
-          <template v-if="drawerState.header">
-            <div class="form-grid">
-              <label>
-                <span>Unit Poliklinik</span>
-                <select v-model="form.unitId">
-                  <option value="">Pilih unit</option>
-                  <option v-for="unit in masters.units" :key="unit.unitId" :value="String(unit.unitId)">
-                    {{ unit.unitCode }} - {{ unit.unitName }}
-                  </option>
-                </select>
-              </label>
-
-              <label class="checkbox-field">
-                <input v-model="form.referencePatient" type="checkbox" />
-                <span>{{ patientModeLabel }}</span>
-              </label>
-
-              <label>
-                <span>No. Nota</span>
-                <input :value="form.noteNumber" type="text" readonly />
-              </label>
-
-              <label>
-                <span>Status Nota</span>
-                <input :value="form.noteStatusLabel" type="text" readonly />
-              </label>
-
-              <label v-if="!form.referencePatient">
-                <span>No. MR</span>
-                <input :value="form.existingMrCode" type="text" readonly />
-              </label>
-
-              <label v-if="!form.referencePatient">
-                <span>No. Registrasi</span>
-                <input :value="form.registrationCode" type="text" readonly />
-              </label>
-
-              <label>
-                <span>Nama Pasien</span>
-                <input v-model="form.patientName" type="text" :readonly="!form.referencePatient && !isEditingExistingNote" />
-              </label>
-
-              <label>
-                <span>Jenis Kelamin</span>
-                <select v-model="form.gender">
-                  <option value="M">PRIA</option>
-                  <option value="F">WANITA</option>
-                </select>
-              </label>
-
-              <label>
-                <span>Tanggal Lahir</span>
-                <input v-model="form.birthDate" type="date" :readonly="!form.referencePatient && !isEditingExistingNote" />
-              </label>
-
-              <label>
-                <span>Tipe Pasien</span>
-                <select v-model="form.patientTypeId">
-                  <option value="">Pilih tipe</option>
-                  <option v-for="type in masters.patientTypes" :key="type.patientTypeId" :value="String(type.patientTypeId)">
-                    {{ type.patientTypeName }}
-                  </option>
-                </select>
-              </label>
-
-              <label>
-                <span>Tipe Pembawa</span>
-                <select v-model="form.escortId">
-                  <option value="">-</option>
-                  <option v-for="escort in masters.escorts" :key="escort.escortId" :value="String(escort.escortId)">
-                    {{ escort.escortType }}
-                  </option>
-                </select>
-              </label>
-
-              <label>
-                <span>Dokter Utama</span>
-                <select v-model="form.doctorId">
-                  <option value="">-</option>
-                  <option v-for="doctor in doctorResults" :key="doctor.doctorId" :value="String(doctor.doctorId)">
-                    {{ doctor.doctorCode }} - {{ doctor.doctorName }}
-                  </option>
-                </select>
-              </label>
-
-              <label class="form-grid__wide">
-                <span>Alamat</span>
-                <textarea v-model="form.address" rows="3" :readonly="!form.referencePatient && !isEditingExistingNote" />
-              </label>
-            </div>
-          </template>
-        </section>
-
-        <section class="panel-card" v-if="!form.referencePatient">
-          <button
-            class="section-toggle-button"
-            :class="{ 'section-toggle-button--active': drawerState.patientSearch }"
-            type="button"
-            @click="toggleDrawer('patientSearch')"
-          >
-            Pencarian Pasien Terdaftar
-          </button>
-
-          <template v-if="drawerState.patientSearch">
-            <div class="search-grid">
-              <label>
-                <span>No. MR</span>
-                <input v-model="patientSearch.mrCode" type="text" />
-              </label>
-              <label>
-                <span>Nama</span>
-                <input v-model="patientSearch.patientName" type="text" />
-              </label>
-              <label>
-                <span>Alamat</span>
-                <input v-model="patientSearch.address" type="text" />
-              </label>
-            </div>
-
-            <div class="button-row">
-              <button class="primary-button" type="button" :disabled="searchingPatients" @click="searchRegisteredPatients">
-                {{ searchingPatients ? 'Mencari...' : 'Cari Pasien' }}
-              </button>
-            </div>
-
-            <div class="table-wrap">
-              <table class="result-table">
-                <thead>
-                  <tr>
-                    <th>No. MR</th>
-                    <th>Nama</th>
-                    <th>Alamat</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="patient in registeredPatients" :key="patient.medicalRecordId">
-                    <td>{{ patient.medicalRecordCode }}</td>
-                    <td>{{ patient.patientName }}</td>
-                    <td>{{ patient.address }}</td>
-                    <td><button class="link-button" type="button" @click="pickRegisteredPatient(patient.medicalRecordCode)">Pilih</button></td>
-                  </tr>
-                  <tr v-if="!registeredPatients.length">
-                    <td colspan="4" class="empty-state">Belum ada hasil pencarian pasien.</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </template>
-        </section>
+      <!-- Mode Tabs -->
+      <div class="mode-tabs">
+        <button class="mode-tab" :class="{ 'mode-tab--active': searchMode === 'patient' }" @click="switchSearchMode('patient')">
+          🏥 Cari / Input Pasien Baru
+        </button>
+        <button class="mode-tab" :class="{ 'mode-tab--active': searchMode === 'note' }" @click="switchSearchMode('note')">
+          📋 Cari Nota Aktif
+        </button>
       </div>
 
-      <section class="panel-card">
-        <div class="entry-card-stack">
-          <div class="button-row">
-            <button
-              class="section-toggle-button"
-              :class="{ 'section-toggle-button--active': drawerState.treatment }"
-              type="button"
-              @click="toggleDrawer('treatment')"
-            >
-              Tambah Tindakan
-            </button>
-            <button
-              class="section-toggle-button"
-              :class="{ 'section-toggle-button--active': drawerState.item }"
-              type="button"
-              @click="toggleDrawer('item')"
-            >
-              Tambah O-BM
-            </button>
-            <button
-              class="section-toggle-button"
-              :class="{ 'section-toggle-button--active': drawerState.misc }"
-              type="button"
-              @click="toggleDrawer('misc')"
-            >
-              Tambah Biaya Lain-Lain
-            </button>
+      <!-- ======================== PATIENT SEARCH MODE ======================== -->
+      <div v-if="searchMode === 'patient'" class="card search-card">
+        <h3>
+          <span>Pencarian Pasien</span>
+          <span class="search-actions">
+            <button v-if="selectedPatient && !showSearch" class="small-button" type="button" @click="toggleSearch">Cari Pasien Lain</button>
+            <button v-if="registeredPatients.length || selectedPatient" class="small-button" type="button" @click="resetSearch">Reset</button>
+          </span>
+        </h3>
+
+        <!-- Search Form -->
+        <div v-if="showSearch" class="search-form">
+          <div class="form-row">
+            <label>
+              No. MR
+              <input v-model="patientSearch.mrCode" placeholder="Ketik No. Medical Record" @keyup.enter="searchRegisteredPatients" />
+            </label>
+            <label>
+              Nama Pasien
+              <input v-model="patientSearch.patientName" placeholder="Nama lengkap pasien" @keyup.enter="searchRegisteredPatients" />
+            </label>
           </div>
-
-          <template v-if="drawerState.treatment">
-            <div class="search-grid">
-              <label>
-                <span>Kode</span>
-                <input v-model="treatmentSearch.code" type="text" />
-              </label>
-              <label>
-                <span>Nama</span>
-                <input v-model="treatmentSearch.name" type="text" />
-              </label>
-            </div>
-            <div class="button-row">
-              <button class="secondary-button" type="button" :disabled="treatmentSearching" @click="searchTreatments">
-                {{ treatmentSearching ? 'Mencari...' : 'Cari Tindakan' }}
-              </button>
-            </div>
-            <div class="table-wrap compact-table">
-              <table class="result-table">
-                <thead>
-                  <tr>
-                    <th>Kode</th>
-                    <th>Nama</th>
-                    <th>Harga</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="treatment in treatmentResults" :key="treatment.treatmentFeeId">
-                    <td>{{ treatment.treatmentCode }}</td>
-                    <td>{{ treatment.treatmentName }}</td>
-                    <td>{{ formatCurrency(treatment.price) }}</td>
-                    <td><button class="link-button" type="button" @click="addTreatment(treatment)">Tambah</button></td>
-                  </tr>
-                  <tr v-if="!treatmentResults.length">
-                    <td colspan="4" class="empty-state">Hasil tindakan akan muncul di sini.</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </template>
-
-          <template v-if="drawerState.item">
-            <div class="search-grid">
-              <label>
-                <span>Kode</span>
-                <input v-model="itemSearch.code" type="text" />
-              </label>
-              <label>
-                <span>Nama</span>
-                <input v-model="itemSearch.name" type="text" />
-              </label>
-            </div>
-            <div class="button-row">
-              <button class="secondary-button" type="button" :disabled="itemSearching" @click="searchItems">
-                {{ itemSearching ? 'Mencari...' : 'Cari Item' }}
-              </button>
-            </div>
-            <div class="table-wrap compact-table">
-              <table class="result-table">
-                <thead>
-                  <tr>
-                    <th>Kode</th>
-                    <th>Nama</th>
-                    <th>Stok</th>
-                    <th>Harga</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="item in itemResults" :key="item.itemId">
-                    <td>{{ item.itemCode }}</td>
-                    <td>{{ item.itemName }}</td>
-                    <td>{{ formatCurrency(item.stockQuantity) }}</td>
-                    <td>{{ formatCurrency(item.price) }}</td>
-                    <td><button class="link-button" type="button" @click="addItem(item)">Tambah</button></td>
-                  </tr>
-                  <tr v-if="!itemResults.length">
-                    <td colspan="5" class="empty-state">Hasil item akan muncul di sini.</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </template>
-
-          <template v-if="drawerState.misc">
-            <div class="search-grid">
-              <label>
-                <span>Nama Biaya</span>
-                <input v-model="miscDraft.description" type="text" />
-              </label>
-              <label>
-                <span>Jumlah</span>
-                <input v-model.number="miscDraft.quantity" type="number" min="1" />
-              </label>
-              <label>
-                <span>Harga</span>
-                <input v-model.number="miscDraft.unitPrice" type="number" min="0" />
-              </label>
-            </div>
-            <div class="button-row">
-              <button class="secondary-button" type="button" @click="addMisc">Tambah Biaya</button>
-            </div>
-          </template>
-        </div>
-      </section>
-
-      <section class="panel-card">
-        <div class="table-heading">
-          <h3>Detail Transaksi Poliklinik</h3>
-          <strong>Total: {{ formatCurrency(totalAmount) }}</strong>
+          <div class="form-row">
+            <label class="wide">
+              Alamat
+              <input v-model="patientSearch.address" placeholder="Alamat pasien" @keyup.enter="searchRegisteredPatients" />
+            </label>
+          </div>
+          <button class="primary-button" :disabled="searchingPatients" @click="searchRegisteredPatients">
+            {{ searchingPatients ? 'Mencari...' : 'Cari Pasien' }}
+          </button>
         </div>
 
-        <div class="table-wrap">
-          <table class="result-table">
+        <!-- Search Results -->
+        <div v-if="showSearch && registeredPatients.length" class="table-wrap">
+          <table class="table">
             <thead>
               <tr>
-                <th>Jenis</th>
-                <th>Kode</th>
-                <th>Keterangan</th>
-                <th>Jumlah</th>
-                <th>Satuan</th>
-                <th>Harga</th>
-                <th>Diskon</th>
-                <th>Subtotal</th>
-                <th />
+                <th>No. MR</th>
+                <th>Nama Pasien</th>
+                <th>Alamat</th>
+                <th>Aksi</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(line, index) in lines" :key="line.clientId">
-                <td>{{ line.lineType }}</td>
-                <td>{{ line.code }}</td>
+              <tr v-for="patient in registeredPatients" :key="patient.medicalRecordId">
+                <td><strong>{{ patient.medicalRecordCode }}</strong></td>
+                <td>{{ patient.patientName }}</td>
+                <td>{{ patient.address || '-' }}</td>
                 <td>
-                  <div>{{ line.description }}</div>
-                  <input
-                    v-if="line.lineType === 'ITEM' && !line.readOnly"
-                    v-model="line.instruction"
-                    type="text"
-                    placeholder="Aturan pakai"
-                  />
+                  <button class="link-button" @click="selectPatient(patient.medicalRecordCode)">Pilih</button>
                 </td>
-                <td>
-                  <input v-model.number="line.quantity" :disabled="line.readOnly" type="number" min="1" />
-                </td>
-                <td>{{ line.unitName }}</td>
-                <td>{{ formatCurrency(line.unitPrice) }}</td>
-                <td>
-                  <div class="discount-stack">
-                    <input v-model.number="line.discountValue" :disabled="line.readOnly" type="number" min="0" />
-                    <select v-model="line.discountType" :disabled="line.readOnly">
-                      <option value="RP">RP</option>
-                      <option value="%">%</option>
-                    </select>
-                  </div>
-                </td>
-                <td>{{ formatCurrency(calculateSubtotal(line)) }}</td>
-                <td>
-                  <button v-if="!line.readOnly" class="link-button" type="button" @click="removeLine(index)">Hapus</button>
-                  <span v-else class="muted-text">readonly</span>
-                </td>
-              </tr>
-              <tr v-if="!lines.length">
-                <td colspan="9" class="empty-state">Belum ada item transaksi poliklinik.</td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        <div class="button-row">
-          <button
-            class="primary-button"
-            type="button"
-            :disabled="saving || (isEditingExistingNote && !availableActions.canModify)"
-            @click="saveNote"
-          >
-            {{ saving ? 'Menyimpan...' : isEditingExistingNote ? 'Simpan Perubahan' : 'Simpan Nota' }}
+        <!-- Selected Patient Detail -->
+        <div v-if="selectedPatient" class="selected-patient">
+          <h4>Detail Pasien Terpilih</h4>
+          <div class="patient-detail-grid">
+            <div class="detail-item">
+              <span class="detail-label">No. MR</span>
+              <span class="detail-value">{{ selectedPatient.medicalRecordCode }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">No. Registrasi</span>
+              <span class="detail-value">{{ selectedPatient.registrationCode || '-' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Nama</span>
+              <span class="detail-value">{{ selectedPatient.patientName }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Jenis Kelamin</span>
+              <span class="detail-value">{{ selectedPatient.gender === 'M' ? 'Laki-Laki' : 'Perempuan' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Tgl. Lahir / Umur</span>
+              <span class="detail-value">{{ formatDate(selectedPatient.birthDate) }} / {{ calculateAge(selectedPatient.birthDate) }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Tipe Pasien</span>
+              <span class="detail-value">{{ patientTypeName(selectedPatient.patientTypeId) }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Dokter Utama</span>
+              <span class="detail-value">{{ selectedPatient.doctorName || '-' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Alamat</span>
+              <span class="detail-value">{{ selectedPatient.address || '-' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Tipe Pembawa</span>
+              <span class="detail-value">{{ escortTypeName(selectedPatient.escortId) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div v-if="selectedPatient" class="action-bar">
+          <button class="action-button action-button--treatment" type="button" :class="{ 'is-active': drawerState.treatment }" @click="toggleDrawer('treatment')">
+            <span class="action-icon">🪚</span>
+            <span class="action-label">Tambah Tindakan</span>
           </button>
-          <button
-            class="secondary-button"
-            type="button"
-            :disabled="saving || !availableActions.canValidate"
-            @click="validateNote"
-          >
-            Validasi
+          <button class="action-button action-button--item" type="button" :class="{ 'is-active': drawerState.item }" @click="toggleDrawer('item')">
+            <span class="action-icon">💊</span>
+            <span class="action-label">Tambah O-BM</span>
+          </button>
+          <button class="action-button action-button--misc" type="button" :class="{ 'is-active': drawerState.misc }" @click="toggleDrawer('misc')">
+            <span class="action-icon">📋</span>
+            <span class="action-label">Biaya Lain-Lain</span>
           </button>
         </div>
 
-        <label class="cancel-field">
-          <span>Alasan Pembatalan</span>
-          <textarea v-model="form.cancelationNote" rows="2" placeholder="Isi alasan pembatalan nota bila diperlukan." />
-        </label>
-
-        <div class="button-row">
-          <button
-            class="danger-button"
-            type="button"
-            :disabled="saving || !availableActions.canCancel"
-            @click="cancelNote"
-          >
-            Batalkan Nota
+        <!-- Treatment Panel -->
+        <div v-if="drawerState.treatment && selectedPatient" class="obm-panel">
+          <div class="obm-header">
+            <h4>FORM TAMBAH TINDAKAN</h4>
+            <button class="small-button" type="button" @click="toggleDrawer('treatment')">Tutup</button>
+          </div>
+          <div class="form-row">
+            <label>KODE <input v-model="treatmentSearch.code" placeholder="Kode tindakan" @keyup.enter="searchTreatments" /></label>
+            <label>NAMA <input v-model="treatmentSearch.name" placeholder="Nama tindakan" @keyup.enter="searchTreatments" /></label>
+          </div>
+          <button class="primary-button" :disabled="treatmentSearching" @click="searchTreatments" style="margin-bottom:8px">
+            {{ treatmentSearching ? 'Mencari...' : 'Cari Tindakan' }}
           </button>
+          <div v-if="treatmentResults.length" class="table-wrap">
+            <table class="table">
+              <thead><tr><th>KODE</th><th>NAMA</th><th>HARGA</th><th>JUMLAH</th><th></th></tr></thead>
+              <tbody>
+                <tr v-for="t in treatmentResults" :key="t.treatmentFeeId">
+                  <td><strong>{{ t.treatmentCode }}</strong></td>
+                  <td>{{ t.treatmentName }}</td>
+                  <td>Rp {{ formatCurrency(t.price) }}</td>
+                  <td><input class="qty-input" type="number" v-model.number="t.qty" min="1" /></td>
+                  <td><button class="link-button" @click="addTreatment(t)">Tambah</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-      </section>
 
-      <section class="panel-card">
-        <h3>Riwayat Nota Poliklinik</h3>
-        <div class="search-grid">
-          <label>
-            <span>No. Nota</span>
-            <input v-model="noteSearch.noteNumber" type="text" />
-          </label>
-          <label>
-            <span>Nama Pasien</span>
-            <input v-model="noteSearch.patientName" type="text" />
-          </label>
+        <!-- O-BM Panel -->
+        <div v-if="drawerState.item && selectedPatient" class="obm-panel">
+          <div class="obm-header">
+            <h4>FORM TAMBAH OBAT - BAHAN MEDIS</h4>
+            <button class="small-button" type="button" @click="toggleDrawer('item')">Tutup</button>
+          </div>
+          <div class="form-row">
+            <label>KODE <input v-model="itemSearch.code" placeholder="Kode item/obat" @keyup.enter="searchItems" /></label>
+            <label>NAMA <input v-model="itemSearch.name" placeholder="Nama item/obat" @keyup.enter="searchItems" /></label>
+          </div>
+          <button class="primary-button" :disabled="itemSearching" @click="searchItems" style="margin-bottom:8px">
+            {{ itemSearching ? 'Mencari...' : 'Cari O-BM' }}
+          </button>
+          <div v-if="itemResults.length" class="table-wrap">
+            <table class="table">
+              <thead><tr><th>KODE</th><th>NAMA</th><th>HARGA</th><th>STOK</th><th>JUMLAH</th><th></th></tr></thead>
+              <tbody>
+                <tr v-for="item in itemResults" :key="item.itemId">
+                  <td><strong>{{ item.itemCode }}</strong></td>
+                  <td>{{ item.itemName }}</td>
+                  <td>Rp {{ formatCurrency(item.price) }}</td>
+                  <td>{{ formatCurrency(item.stockQuantity) }}</td>
+                  <td><input class="qty-input" type="number" v-model.number="item.qty" min="1" /></td>
+                  <td><button class="link-button" @click="addItem(item)">Tambah</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div class="button-row">
-          <button class="secondary-button" type="button" :disabled="searchingNotes" @click="searchNotes">
+
+        <!-- Misc Panel -->
+        <div v-if="drawerState.misc && selectedPatient" class="obm-panel">
+          <div class="obm-header">
+            <h4>FORM TRANSAKSI LAIN-LAIN</h4>
+            <button class="small-button" type="button" @click="toggleDrawer('misc')">Tutup</button>
+          </div>
+          <div class="form-row">
+            <label class="wide">NAMA <input type="text" v-model="miscDraft.description" placeholder="Nama biaya" /></label>
+          </div>
+          <div class="form-row">
+            <label>JUMLAH <input type="number" v-model.number="miscDraft.quantity" min="1" step="1" /></label>
+            <label>HARGA SATUAN <input type="number" v-model.number="miscDraft.unitPrice" min="0" step="100" /></label>
+          </div>
+          <button class="primary-button" @click="addMisc" style="margin-top:4px">Simpan</button>
+        </div>
+
+        <!-- Cart Items -->
+        <div v-if="lines.length" class="card" style="margin-top:12px">
+          <h3>
+            <span>Item Transaksi ({{ lines.length }})</span>
+            <span class="cart-total">Total: Rp {{ formatCurrency(totalAmount) }}</span>
+          </h3>
+          <div class="table-wrap">
+            <table class="table">
+              <thead><tr><th>JENIS</th><th>KODE</th><th>KETERANGAN</th><th>QTY</th><th>SATUAN</th><th>HARGA</th><th>DISKON</th><th>SUBTOTAL</th><th></th></tr></thead>
+              <tbody>
+                <tr v-for="(line, idx) in lines" :key="line.clientId">
+                  <td>{{ line.lineType }}</td>
+                  <td><strong>{{ line.code }}</strong></td>
+                  <td>
+                    <div>{{ line.description }}</div>
+                    <input v-if="line.lineType==='ITEM' && !line.readOnly" v-model="line.instruction" type="text" placeholder="Aturan pakai" />
+                  </td>
+                  <td><input class="qty-input" type="number" v-model.number="line.quantity" :disabled="line.readOnly" min="1" /></td>
+                  <td>{{ line.unitName }}</td>
+                  <td>Rp {{ formatCurrency(line.unitPrice) }}</td>
+                  <td>
+                    <div class="discount-stack">
+                      <input type="number" v-model.number="line.discountValue" :disabled="line.readOnly" min="0" />
+                      <select v-model="line.discountType" :disabled="line.readOnly">
+                        <option value="RP">RP</option><option value="%">%</option>
+                      </select>
+                    </div>
+                  </td>
+                  <td>Rp {{ formatCurrency(calculateSubtotal(line)) }}</td>
+                  <td>
+                    <button v-if="!line.readOnly" class="link-button link-danger" @click="removeLine(idx)">Hapus</button>
+                    <span v-else class="muted-text">readonly</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Save / Validate / Cancel -->
+        <div v-if="lines.length" class="save-actions" style="margin-top:12px">
+          <button class="primary-button primary-button--lg" :disabled="saving || (isEditingExistingNote && !availableActions.canModify)" @click="saveNote">
+            {{ saving ? 'Menyimpan...' : '💾 Simpan Transaksi' }}
+          </button>
+          <button class="secondary-button" :disabled="saving || !availableActions.canValidate" @click="validateNote">Validasi</button>
+        </div>
+      </div>
+
+      <!-- ======================== NOTE SEARCH MODE ======================== -->
+      <div v-if="searchMode === 'note'" class="card search-card">
+        <h3>
+          <span>🔍 Pencarian Nota Aktif</span>
+          <span class="search-actions">
+            <button v-if="noteDetail" class="small-button" type="button" @click="resetNoteSearch">Reset</button>
+          </span>
+        </h3>
+
+        <div v-if="!noteDetail" class="search-form">
+          <div class="form-row">
+            <label>
+              No. Nota
+              <input v-model="noteSearch.noteNumber" placeholder="Ketik No. Nota" @keyup.enter="searchNotes" />
+            </label>
+            <label>
+              Nama Pasien
+              <input v-model="noteSearch.patientName" placeholder="Nama pasien" @keyup.enter="searchNotes" />
+            </label>
+          </div>
+          <button class="primary-button" :disabled="searchingNotes" @click="searchNotes">
             {{ searchingNotes ? 'Mencari...' : 'Cari Nota' }}
           </button>
         </div>
-        <div class="table-wrap">
-          <table class="result-table">
+
+        <!-- Note Search Results -->
+        <div v-if="noteResults.length" class="table-wrap">
+          <table class="table">
             <thead>
               <tr>
                 <th>No. Nota</th>
                 <th>Pasien</th>
                 <th>Status</th>
-                <th>Dibuat</th>
-                <th />
+                <th>Tgl. Buat</th>
+                <th>Aksi</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="note in noteResults" :key="note.noteId">
-                <td>{{ note.noteNumber }}</td>
-                <td>{{ note.patientName }}</td>
-                <td>{{ note.statusLabel }}</td>
-                <td>{{ note.createdAt ? note.createdAt.slice(0, 19).replace('T', ' ') : '-' }}</td>
-                <td><button class="link-button" type="button" @click="loadNoteDetail(note.noteId)">Buka</button></td>
-              </tr>
-              <tr v-if="!noteResults.length">
-                <td colspan="5" class="empty-state">Belum ada hasil pencarian nota.</td>
+              <tr v-for="n in noteResults" :key="n.noteId">
+                <td><strong>{{ n.noteNumber }}</strong></td>
+                <td>{{ n.patientName }}</td>
+                <td><span class="badge">{{ n.statusLabel }}</span></td>
+                <td>{{ n.createdAt ? n.createdAt.slice(0, 19).replace('T', ' ') : '-' }}</td>
+                <td>
+                  <button class="link-button" :disabled="n.statusCode !== 1" @click="selectExistingNote(n.noteId)">
+                    {{ n.statusCode === 1 ? 'Pilih & Validasi' : 'Tervalidasi' }}
+                  </button>
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
-      </section>
+
+        <!-- Selected Note Detail -->
+        <div v-if="noteDetail" class="selected-patient">
+          <h4>Detail Nota</h4>
+          <div class="patient-detail-grid">
+            <div class="detail-item">
+              <span class="detail-label">No. Nota</span>
+              <span class="detail-value">{{ noteDetail.noteNumber }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Status</span>
+              <span class="detail-value">{{ noteDetail.statusLabel }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Pasien</span>
+              <span class="detail-value">{{ noteDetail.patientName }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Total</span>
+              <span class="detail-value">Rp {{ formatCurrency(noteDetail.totalAmount) }}</span>
+            </div>
+          </div>
+
+          <!-- Note Lines -->
+          <div v-if="noteDetail.lines && noteDetail.lines.length" class="table-wrap" style="margin-top: 12px;">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>KODE</th>
+                  <th>NAMA</th>
+                  <th>HARGA</th>
+                  <th>QTY</th>
+                  <th>SUBTOTAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(line, idx) in noteDetail.lines" :key="idx">
+                  <td><strong>{{ line.code }}</strong></td>
+                  <td>{{ line.description }}</td>
+                  <td>Rp {{ formatCurrency(line.unitPrice) }}</td>
+                  <td>{{ line.quantity }}</td>
+                  <td>Rp {{ formatCurrency(line.subtotal) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </template>
-  </section>
+  </div>
 </template>
 
 <style scoped>
-.poli-page {
-  display: grid;
-  gap: 20px;
-}
+.poli-page { padding: 16px; }
+.page-header { margin-bottom: 16px; }
+.page-header h2 { margin: 0; color: #304b73; font-size: 20px; }
+.page-subtitle { margin: 4px 0 0; color: #6b7280; font-size: 14px; }
 
-.section-header h2,
-.panel-card h3 {
-  margin: 0;
-}
-
-.section-kicker {
-  margin: 0 0 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 12px;
-}
-
-.section-copy {
-  margin-bottom: 0;
-}
-
-.header-actions,
-.button-row {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.layout-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(320px, 1fr));
-  gap: 20px;
-}
-
-.panel-card {
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(150, 136, 117, 0.35);
-  box-shadow: 0 12px 24px rgba(53, 64, 84, 0.08);
-  padding: 24px;
-}
-
-.entry-card-stack {
-  display: grid;
-  gap: 16px;
-}
-
-.form-grid,
-.search-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(180px, 1fr));
-  gap: 16px;
-}
-
-.form-grid__wide {
-  grid-column: 1 / -1;
-}
-
-label {
-  display: grid;
-  gap: 8px;
-  font-weight: 600;
-  color: #31415f;
-}
-
-input,
-select,
-textarea,
-button {
-  font: inherit;
-}
-
-input,
-select,
-textarea {
-  min-height: 40px;
-  border: 1px solid #c9d3e3;
-  background: #fff;
-  padding: 8px 10px;
-}
-
-textarea {
-  min-height: 84px;
-  resize: vertical;
-}
-
-.checkbox-field {
+.unit-bar {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding-top: 28px;
-}
-
-.checkbox-field input {
-  min-height: auto;
-}
-
-.table-wrap {
-  overflow-x: auto;
-}
-
-.result-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.result-table th,
-.result-table td {
-  border-bottom: 1px solid #e2e8f0;
-  padding: 10px;
-  text-align: left;
-  vertical-align: top;
-}
-
-.result-table th {
-  color: #41526e;
-  font-size: 13px;
-}
-
-.primary-button,
-.secondary-button,
-.danger-button,
-.link-button {
-  border: 0;
-  cursor: pointer;
-}
-
-.primary-button,
-.secondary-button,
-.danger-button {
-  min-height: 40px;
-  padding: 0 18px;
-  font-weight: 700;
-}
-
-.primary-button {
-  background: #304b73;
-  color: #fff;
-}
-
-.secondary-button {
-  background: #dfe7f4;
-  color: #304b73;
-}
-
-.section-toggle-button {
-  min-height: 40px;
-  padding: 0 18px;
-  border: 0;
-  background: #dfe7f4;
-  color: #304b73;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.section-toggle-button--active {
-  background: #304b73;
-  color: #fff;
-}
-
-.danger-button {
-  background: #b84747;
-  color: #fff;
-}
-
-.link-button {
-  background: transparent;
-  color: #2a5cbf;
-  font-weight: 700;
-  padding: 0;
-}
-
-.status-banner {
-  margin: 0;
-  padding: 12px 16px;
-  font-weight: 600;
-}
-
-.status-banner--success {
-  background: #e3f7ea;
-  color: #215b35;
-}
-
-.status-banner--error {
-  background: #fee9e9;
-  color: #8b2525;
-}
-
-.discount-stack {
-  display: grid;
-  grid-template-columns: 1fr 86px;
-  gap: 8px;
-}
-
-.table-heading {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: center;
   margin-bottom: 16px;
+  padding: 10px 16px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
 }
+.unit-label { font-size: 12px; font-weight: 700; color: #304b73; white-space: nowrap; }
+.unit-select { min-width: 280px; padding: 6px 10px; border: 1px solid #d1d9e6; border-radius: 8px; font: inherit; font-size: 13px; background: #fff; }
 
-.empty-state,
-.muted-text {
-  color: #6b7280;
-}
+.loading { padding: 24px; text-align: center; color: #9ca3af; }
 
-.cancel-field {
-  margin-top: 18px;
-}
+.status-banner { padding: 12px 16px; border-radius: 10px; font-weight: 600; margin-bottom: 12px; }
+.status-banner--success { background: #e6f5ea; color: #1d6b3a; }
+.status-banner--error { background: #fde8ea; color: #a32943; }
 
-@media (max-width: 1100px) {
-  .layout-grid,
-  .form-grid,
-  .search-grid {
-    grid-template-columns: 1fr;
-  }
+.card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+.card h3 { margin: 0 0 12px; font-size: 16px; color: #304b73; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.card h4 { margin: 12px 0 8px; font-size: 14px; color: #304b73; }
+.search-actions { display: flex; gap: 6px; }
+
+.mode-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.mode-tab { flex: 1; padding: 12px 20px; border: 2px solid #d1d9e6; border-radius: 10px; background: #fff; font-weight: 700; font-size: 14px; color: #3d4b63; cursor: pointer; transition: all .2s; }
+.mode-tab:hover { border-color: #5f83c2; color: #304b73; }
+.mode-tab--active { background: #304b73; border-color: #304b73; color: #fff; }
+.mode-tab--active:hover { background: #1f3352; }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.form-row label { display: grid; gap: 4px; font-size: 13px; color: #3d4b63; }
+.form-row .wide { grid-column: 1 / -1; }
+
+input, select { padding: 8px 10px; border: 1px solid #d1d9e6; border-radius: 8px; font: inherit; background: #fff; }
+input:disabled, select:disabled { background: #f7f7f9; color: #6b7280; }
+
+.primary-button, .secondary-button, .danger-button { border: 0; cursor: pointer; padding: 8px 20px; font-weight: 700; border-radius: 8px; }
+.primary-button { background: #304b73; color: #fff; }
+.primary-button:disabled { opacity: 0.5; cursor: not-allowed; }
+.secondary-button { background: #fff; border: 1px solid #d1d9e6; color: #3d4b63; }
+.secondary-button:hover { background: #f6f8fb; }
+.danger-button { background: #b84747; color: #fff; }
+.small-button { padding: 6px 12px; font-size: 12px; background: #eef3fb; border: 1px solid #d1d9e6; border-radius: 6px; cursor: pointer; }
+
+.action-bar { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+.action-button {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 20px; border: 1px solid #d1d9e6; border-radius: 10px;
+  background: #fff; font-weight: 700; font-size: 14px; cursor: pointer;
+  transition: all 0.15s ease; min-width: 160px;
 }
+.action-button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(48, 75, 115, 0.12); }
+.action-button.is-active { background: #eef3fb; border-color: #304b73; }
+.action-button--treatment { border-left: 4px solid #5f83c2; color: #304b73; }
+.action-button--item { border-left: 4px solid #2d7d46; color: #2d7d46; }
+.action-button--misc { border-left: 4px solid #b8860b; color: #b8860b; }
+.action-icon { font-size: 18px; }
+.action-label { white-space: nowrap; }
+
+.obm-panel { margin-top: 16px; padding: 16px; background: #fafbfc; border: 1px solid #d1d9e6; border-radius: 10px; }
+.obm-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.obm-header h4 { margin: 0; font-size: 14px; color: #304b73; }
+.obm-panel .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.obm-panel .form-row label { display: grid; gap: 4px; font-size: 13px; color: #3d4b63; }
+.obm-panel .form-row label.wide { grid-column: 1 / -1; }
+
+.qty-input { width: 60px; padding: 4px 6px; border: 1px solid #d1d9e6; border-radius: 6px; font: inherit; font-size: 12px; text-align: center; }
+
+.table-wrap { overflow: auto; margin: 10px 0; }
+.table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table th, .table td { padding: 8px 10px; border-bottom: 1px solid #eef2f7; text-align: left; }
+.table th { background: #f6f8fb; color: #304b73; white-space: nowrap; }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+.link-button { background: transparent; border: 0; color: #2d5aa3; font-weight: 700; padding: 0; cursor: pointer; }
+.link-danger { color: #a32943; }
+
+.selected-patient { margin-top: 16px; padding: 16px; background: #f8faff; border: 1px solid #d1d9e6; border-radius: 10px; }
+.selected-patient h4 { margin: 0 0 10px; font-size: 14px; color: #304b73; }
+.patient-detail-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.detail-item { display: flex; flex-direction: column; gap: 2px; }
+.detail-label { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+.detail-value { font-size: 14px; font-weight: 600; color: #2b2b2b; }
+
+.form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.discount-stack { display: grid; grid-template-columns: 1fr 80px; gap: 6px; }
+.empty-state, .muted-text { color: #9ca3af; }
+.cart-total { font-size: 14px; color: #2d7d46; font-weight: 700; }
+.save-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.primary-button--lg { padding: 12px 28px; font-size: 15px; }
 </style>

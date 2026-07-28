@@ -1,5 +1,6 @@
 package com.vone.simrs.polyclinic;
 
+import com.vone.simrs.accounting.JournalService;
 import com.vone.simrs.auth.LegacyAuthService;
 import java.sql.Date;
 import java.sql.ResultSet;
@@ -43,10 +44,12 @@ public class PolyclinicService {
 
     private final JdbcTemplate jdbcTemplate;
     private final LegacyAuthService legacyAuthService;
+    private final JournalService journalService;
 
-    public PolyclinicService(JdbcTemplate jdbcTemplate, LegacyAuthService legacyAuthService) {
+    public PolyclinicService(JdbcTemplate jdbcTemplate, LegacyAuthService legacyAuthService, JournalService journalService) {
         this.jdbcTemplate = jdbcTemplate;
         this.legacyAuthService = legacyAuthService;
+        this.journalService = journalService;
     }
 
     public String requireUsername(HttpSession session) {
@@ -74,10 +77,10 @@ public class PolyclinicService {
         return jdbcTemplate.query(
             "select distinct mr.n_mr_id, mr.v_mr_code, p.v_patient_name, p.v_patient_main_addr "
                 + "from tb_medical_record mr, ms_patient p, tb_registration reg "
-                + "where mr.v_mr_code like ? "
+                + "where mr.v_mr_code ilike ? "
                 + "and mr.n_patient_id = p.n_patient_id "
-                + "and p.v_patient_name like ? "
-                + "and p.v_patient_main_addr like ? "
+                + "and p.v_patient_name ilike ? "
+                + "and p.v_patient_main_addr ilike ? "
                 + "and mr.n_mr_id = reg.n_mr_id "
                 + "and reg.reg_status = ? "
                 + "and reg.n_unit_id = ? "
@@ -442,6 +445,10 @@ public class PolyclinicService {
             now,
             noteId
         );
+
+        // Auto jurnal setelah validasi
+        createPolyclinicJournal(noteId, header, now, username);
+
         return new PolyclinicActionResultResponse(noteId, header.noteNumber, NOTE_VALIDATED, toStatusLabel(NOTE_VALIDATED));
     }
 
@@ -468,6 +475,108 @@ public class PolyclinicService {
         return new PolyclinicActionResultResponse(noteId, header.noteNumber, nextStatus, toStatusLabel(nextStatus));
     }
 
+    /* AUTO JOURNAL — dipanggil saat validasi nota */
+    private void createPolyclinicJournal(Integer noteId, PolyclinicNoteHeader header, Timestamp now, String username) {
+        String batchId = journalService.buildJournalBatchId();
+        String voucherNo = header.noteNumber;
+        Integer coaArId = journalService.findCoaIdByGimKey("COA_OUTPATIENT_AR");
+        if (coaArId == null) coaArId = journalService.findCoaIdByGimKey("COA_INPATIENT_AR");
+        if (coaArId == null) throw new IllegalStateException("COA Piutang belum dikonfigurasi.");
+        Integer coaTreatId = journalService.findCoaIdByGimKey("COA_TREATMENT");
+        if (coaTreatId == null) coaTreatId = journalService.findCoaIdByGimKey("COA_MISC_TRX");
+        Integer coaSellId = journalService.findCoaIdByGimKey("COA_ITEM_SELL");
+        if (coaSellId == null) coaSellId = journalService.findCoaIdByGimKey("COA_MISC_TRX");
+        Integer coaMiscId = journalService.findCoaIdByGimKey("COA_MISC_TRX");
+        if (coaMiscId == null) throw new IllegalStateException("COA Misc belum dikonfigurasi.");
+        Integer coaInvId = whCoaByUnit(header.unitId);
+        postLines(batchId, voucherNo, now, username, getTreatJournalLines(noteId), coaArId, coaTreatId);
+        postLines(batchId, voucherNo, now, username, getItemJournalLines(noteId, coaInvId), coaArId, coaSellId);
+        postLines(batchId, voucherNo, now, username, getMiscJournalLines(noteId), coaArId, coaMiscId);
+    }
+
+    private void postLines(String bid, String vno, Timestamp now, String user,
+            List<JournalLine> lines, Integer debitCoa, Integer creditCoa) {
+        for (JournalLine l : lines) {
+            double amt = Math.ceil(l.amt);
+            if (amt <= 0) continue;
+            journalService.insertJournalEntry(bid, vno, l.desc, amt, 0, now, user, debitCoa);
+            journalService.insertJournalEntry(bid, vno, l.desc, 0, amt, now, user, creditCoa);
+            if (l.cogs > 0 && l.coaInv != null && l.coaCogs != null) {
+                journalService.insertJournalEntry(bid, vno, l.desc, 0, l.cogs, now, user, l.coaInv);
+                journalService.insertJournalEntry(bid, vno, l.desc, l.cogs, 0, now, user, l.coaCogs);
+            }
+        }
+    }
+
+    private Integer whCoaByUnit(Integer unitId) {
+        Integer whId = findWarehouseIdByUnit(unitId);
+        return whId != null ? findWhCoa(whId) : null;
+    }
+
+    private Integer cogsCoaByItem(Integer itemId) {
+        return findCogsCoa(itemId);
+    }
+
+    private List<JournalLine> getTreatJournalLines(Integer nid) {
+        return jdbcTemplate.query("select trx.n_amount_after_disc, treat.v_treatment_name, trx.n_qty "
+            + "from tb_treatment_trx trx "
+            + "join ms_treatment_fee tf on tf.n_treatment_fee_id = trx.n_treatment_fee_id "
+            + "join ms_treatment treat on treat.n_treatment_id = tf.n_treatment_id "
+            + "where trx.n_note_id = ? and trx.n_amount_after_disc > 0",
+            (rs, rn) -> new JournalLine("TINDAKAN:" + rs.getString("v_treatment_name")
+                + ";QTY:" + rs.getInt("n_qty"),
+                rs.getDouble("n_amount_after_disc"), 0, null, null), nid);
+    }
+
+    private List<JournalLine> getItemJournalLines(Integer nid, Integer coaInvId) {
+        return jdbcTemplate.query("select itrx.n_item_id, itrx.n_qty, itrx.n_amount_after_disc "
+            + "from tb_item_trx itrx "
+            + "where itrx.n_note_id = ? and itrx.n_amount_after_disc > 0",
+            (rs, rn) -> {
+                Integer iid = rs.getInt("n_item_id");
+                double qty = rs.getDouble("n_qty");
+                double cogs = calcItemCogs(iid, qty);
+                Integer cogsCoa = findCogsCoa(iid);
+                return new JournalLine("OBAT:" + iid + ";QTY:" + (int) qty,
+                    rs.getDouble("n_amount_after_disc"), cogs, coaInvId, cogsCoa);
+            }, nid);
+    }
+
+    private List<JournalLine> getMiscJournalLines(Integer nid) {
+        return jdbcTemplate.query("select v_misc_name, n_amount_after_disc from tb_misc_trx "
+            + "where n_note_id = ? and n_amount_after_disc > 0",
+            (rs, rn) -> new JournalLine("MISC:" + rs.getString("v_misc_name") + ";QTY:1",
+                rs.getDouble("n_amount_after_disc"), 0, null, null), nid);
+    }
+
+    private double calcItemCogs(Integer iid, double qty) {
+        try { Double p = jdbcTemplate.queryForObject(
+            "select avg(n_last_price * n_last_qty) / nullif(sum(n_last_qty), 0) "
+                + "from ms_item where n_item_id = ?", Double.class, iid);
+            return p != null ? Math.ceil(p * qty) : 0;
+        } catch (EmptyResultDataAccessException e) { return 0; }
+    }
+
+    private Integer findWhCoa(Integer whId) {
+        try { return jdbcTemplate.queryForObject(
+            "select n_coa_id from ms_warehouse where n_whouse_id = ?", Integer.class, whId);
+        } catch (EmptyResultDataAccessException e) { return null; }
+    }
+
+    private Integer findCogsCoa(Integer iid) {
+        try { return jdbcTemplate.queryForObject(
+            "select n_coa_cogs from ms_item where n_item_id = ?", Integer.class, iid);
+        } catch (EmptyResultDataAccessException e) { return null; }
+    }
+
+    private static class JournalLine {
+        final String desc; final double amt; final double cogs;
+        final Integer coaInv; final Integer coaCogs;
+        JournalLine(String d, double a, double c, Integer inv, Integer cc) {
+            this.desc = d; this.amt = a; this.cogs = c; this.coaInv = inv; this.coaCogs = cc;
+        }
+    }
+
     private List<PolyclinicUnitResponse> getUnits(String username) {
         if (!hasPolyclinicAccess(username)) {
             return new ArrayList<PolyclinicUnitResponse>();
@@ -480,6 +589,7 @@ public class PolyclinicService {
                 + "join ms_staff_in_unit stfunit on stfunit.n_staff_id = staff.n_staff_id "
                 + "join ms_unit unt on unt.n_unit_id = stfunit.n_unit_id "
                 + "where upper(usr.v_user_name) = ? and staff.d_staff_fired_date is null "
+                + "and unt.unit_type = 1 "
                 + "order by unt.v_unit_name",
             (resultSet, rowNum) -> new PolyclinicUnitResponse(
                 resultSet.getInt("n_unit_id"),
