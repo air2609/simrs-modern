@@ -8,6 +8,7 @@ import LabTreatmentMasterSection from './LabTreatmentMasterSection.vue';
 import LaboratoryTransactionSection from './LaboratoryTransactionSection.vue';
 import LaboratoryResultSection from './LaboratoryResultSection.vue';
 import PolyclinicSection from './PolyclinicSection.vue';
+import ScreenMasterSection from './ScreenMasterSection.vue';
 
 const props = defineProps({
   activeUser: {
@@ -40,7 +41,8 @@ const screenViewMap = {
   'SCM0013': 'location-master',
   'SCM0014': 'location-master',
   'SCM0015': 'location-master',
-  'SCM0016': 'location-master'
+  'SCM0016': 'location-master',
+  'SCM0003': 'screen-master'
 };
 
 // Extra menu items not mapped from user modules
@@ -75,7 +77,8 @@ function screenIcon(screenCode) {
     'SCM0013': '📍',
     'SCM0014': '📍',
     'SCM0015': '📍',
-    'SCM0016': '📍'
+    'SCM0016': '📍',
+    'SCM0003': '🖥️'
   };
   return icons[screenCode] || '📄';
 }
@@ -232,6 +235,12 @@ const apotikUnits = computed(() => {
 
       <LaboratoryResultSection
         v-else-if="selectedView === 'laboratory-result'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <ScreenMasterSection
+        v-else-if="selectedView === 'screen-master'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
       />
