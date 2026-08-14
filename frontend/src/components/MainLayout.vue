@@ -8,6 +8,8 @@ import BedInfoSection from './BedInfoSection.vue';
 
 import GroupMasterSection from './GroupMasterSection.vue';
 import InsuranceSection from './InsuranceSection.vue';
+import ItemSection from './ItemSection.vue';
+
 import JournalSection from './JournalSection.vue';
 import LocationMasterSection from './LocationMasterSection.vue';
 import LabTreatmentMasterSection from './LabTreatmentMasterSection.vue';
@@ -66,8 +68,10 @@ const screenViewMap = {
   'SCM0026': 'treatment',
   'SCM0033': 'bank',
   'SCM0034': 'insurance',
-  'SCM0035': 'warehouse'
+  'SCM0035': 'warehouse',
+  'SCM0038': 'item'
 };
+
 
 
 
@@ -115,8 +119,10 @@ function screenIcon(screenCode) {
     'SCM0026': '🩺',
     'SCM0033': '🏦',
     'SCM0034': '🛡️',
-    'SCM0035': '🏬'
+    'SCM0035': '🏬',
+    'SCM0038': '📦'
   };
+
 
 
   return icons[screenCode] || '📄';
@@ -350,7 +356,14 @@ const apotikUnits = computed(() => {
         @session-expired="emit('session-expired', $event)"
       />
 
+      <ItemSection
+        v-else-if="selectedView === 'item'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
       <LocationMasterSection
+
 
         v-else
         :api-base-url="apiBaseUrl"
