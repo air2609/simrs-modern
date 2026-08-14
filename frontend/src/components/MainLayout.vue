@@ -2,7 +2,10 @@
 import { computed, ref } from 'vue';
 import AdmissionRegistrationSection from './AdmissionRegistrationSection.vue';
 import ApotikSection from './ApotikSection.vue';
+import BankSection from './BankSection.vue';
 import BedDisplaySection from './BedDisplaySection.vue';
+import BedInfoSection from './BedInfoSection.vue';
+
 import GroupMasterSection from './GroupMasterSection.vue';
 import JournalSection from './JournalSection.vue';
 import LocationMasterSection from './LocationMasterSection.vue';
@@ -10,7 +13,11 @@ import LabTreatmentMasterSection from './LabTreatmentMasterSection.vue';
 import LaboratoryTransactionSection from './LaboratoryTransactionSection.vue';
 import LaboratoryResultSection from './LaboratoryResultSection.vue';
 import PolyclinicSection from './PolyclinicSection.vue';
+import PolyDoctorSection from './PolyDoctorSection.vue';
 import ScreenMasterSection from './ScreenMasterSection.vue';
+import TreatmentClassSection from './TreatmentClassSection.vue';
+import TreatmentGroupSection from './TreatmentGroupSection.vue';
+import TreatmentSection from './TreatmentSection.vue';
 import UserMaintenanceSection from './UserMaintenanceSection.vue';
 
 
@@ -49,8 +56,15 @@ const screenViewMap = {
   'SCM0003': 'screen-master',
   'SCM0001': 'user-maintenance',
   'SCM0002': 'group-master',
-  'SCM0058': 'bed-display'
+  'SCM0058': 'bed-display',
+  'SC0072': 'bed-info',
+  'SCM0059': 'poly-doctor',
+  'SCM0021': 'treatment-class',
+  'SCM0023': 'treatment-group',
+  'SCM0026': 'treatment',
+  'SCM0033': 'bank'
 };
+
 
 
 // Extra menu items not mapped from user modules
@@ -89,8 +103,15 @@ function screenIcon(screenCode) {
     'SCM0003': '🖥️',
     'SCM0001': '👤',
     'SCM0002': '👥',
-    'SCM0058': '🛏️'
+    'SCM0058': '🛏️',
+    'SC0072': '🛏️',
+    'SCM0059': '🩺',
+    'SCM0021': '🏷️',
+    'SCM0023': '🗂️',
+    'SCM0026': '🩺',
+    'SCM0033': '🏦'
   };
+
 
   return icons[screenCode] || '📄';
 }
@@ -275,7 +296,44 @@ const apotikUnits = computed(() => {
         @session-expired="emit('session-expired', $event)"
       />
 
+      <BedInfoSection
+        v-else-if="selectedView === 'bed-info'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <PolyDoctorSection
+        v-else-if="selectedView === 'poly-doctor'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <TreatmentClassSection
+        v-else-if="selectedView === 'treatment-class'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <TreatmentGroupSection
+        v-else-if="selectedView === 'treatment-group'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <TreatmentSection
+        v-else-if="selectedView === 'treatment'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <BankSection
+        v-else-if="selectedView === 'bank'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
       <LocationMasterSection
+
         v-else
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
