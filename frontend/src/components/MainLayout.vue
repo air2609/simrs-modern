@@ -7,6 +7,7 @@ import BedDisplaySection from './BedDisplaySection.vue';
 import BedInfoSection from './BedInfoSection.vue';
 
 import GroupMasterSection from './GroupMasterSection.vue';
+import InsuranceSection from './InsuranceSection.vue';
 import JournalSection from './JournalSection.vue';
 import LocationMasterSection from './LocationMasterSection.vue';
 import LabTreatmentMasterSection from './LabTreatmentMasterSection.vue';
@@ -19,6 +20,7 @@ import TreatmentClassSection from './TreatmentClassSection.vue';
 import TreatmentGroupSection from './TreatmentGroupSection.vue';
 import TreatmentSection from './TreatmentSection.vue';
 import UserMaintenanceSection from './UserMaintenanceSection.vue';
+import WarehouseSection from './WarehouseSection.vue';
 
 
 const props = defineProps({
@@ -62,7 +64,9 @@ const screenViewMap = {
   'SCM0021': 'treatment-class',
   'SCM0023': 'treatment-group',
   'SCM0026': 'treatment',
-  'SCM0033': 'bank'
+  'SCM0033': 'bank',
+  'SCM0034': 'insurance',
+  'SCM0035': 'warehouse'
 };
 
 
@@ -109,7 +113,9 @@ function screenIcon(screenCode) {
     'SCM0021': '🏷️',
     'SCM0023': '🗂️',
     'SCM0026': '🩺',
-    'SCM0033': '🏦'
+    'SCM0033': '🏦',
+    'SCM0034': '🛡️',
+    'SCM0035': '🏬'
   };
 
 
@@ -328,6 +334,18 @@ const apotikUnits = computed(() => {
 
       <BankSection
         v-else-if="selectedView === 'bank'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <InsuranceSection
+        v-else-if="selectedView === 'insurance'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <WarehouseSection
+        v-else-if="selectedView === 'warehouse'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
       />
