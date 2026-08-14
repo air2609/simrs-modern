@@ -2,6 +2,8 @@
 import { computed, ref } from 'vue';
 import AdmissionRegistrationSection from './AdmissionRegistrationSection.vue';
 import ApotikSection from './ApotikSection.vue';
+import BedDisplaySection from './BedDisplaySection.vue';
+import GroupMasterSection from './GroupMasterSection.vue';
 import JournalSection from './JournalSection.vue';
 import LocationMasterSection from './LocationMasterSection.vue';
 import LabTreatmentMasterSection from './LabTreatmentMasterSection.vue';
@@ -9,6 +11,8 @@ import LaboratoryTransactionSection from './LaboratoryTransactionSection.vue';
 import LaboratoryResultSection from './LaboratoryResultSection.vue';
 import PolyclinicSection from './PolyclinicSection.vue';
 import ScreenMasterSection from './ScreenMasterSection.vue';
+import UserMaintenanceSection from './UserMaintenanceSection.vue';
+
 
 const props = defineProps({
   activeUser: {
@@ -42,8 +46,12 @@ const screenViewMap = {
   'SCM0014': 'location-master',
   'SCM0015': 'location-master',
   'SCM0016': 'location-master',
-  'SCM0003': 'screen-master'
+  'SCM0003': 'screen-master',
+  'SCM0001': 'user-maintenance',
+  'SCM0002': 'group-master',
+  'SCM0058': 'bed-display'
 };
+
 
 // Extra menu items not mapped from user modules
 const extraMenus = [
@@ -78,8 +86,12 @@ function screenIcon(screenCode) {
     'SCM0014': '📍',
     'SCM0015': '📍',
     'SCM0016': '📍',
-    'SCM0003': '🖥️'
+    'SCM0003': '🖥️',
+    'SCM0001': '👤',
+    'SCM0002': '👥',
+    'SCM0058': '🛏️'
   };
+
   return icons[screenCode] || '📄';
 }
 
@@ -245,11 +257,30 @@ const apotikUnits = computed(() => {
         @session-expired="emit('session-expired', $event)"
       />
 
+      <UserMaintenanceSection
+        v-else-if="selectedView === 'user-maintenance'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <GroupMasterSection
+        v-else-if="selectedView === 'group-master'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <BedDisplaySection
+        v-else-if="selectedView === 'bed-display'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
       <LocationMasterSection
         v-else
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
       />
+
     </main>
   </div>
 </template>
