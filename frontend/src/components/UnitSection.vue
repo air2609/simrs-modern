@@ -33,6 +33,8 @@ const divisionOptions = ref([]);
 const warehouseOptions = ref([]);
 const coaOptions = ref([]);
 const coaKeyword = ref('');
+const coaSearchOpen = ref(false);
+const coaSearching = ref(false);
 
 const form = ref({
   id: null,
@@ -41,8 +43,10 @@ const form = ref({
   divisionId: null,
   unitType: 1,
   warehouseId: null,
-  coaId: null
+  coaId: null,
+  coaKeyword: ''
 });
+
 
 const selectedId = ref(null);
 const saving = ref(false);
@@ -84,16 +88,34 @@ async function loadWarehouseOptions() {
 }
 
 async function searchCoa() {
-  const keyword = coaKeyword.value.trim();
-  coaOptions.value = await request(`/master/unit/coa-search?keyword=${encodeURIComponent(keyword)}`);
+  const keyword = coaKeyword.value;
+  if (!keyword || !keyword.trim()) {
+    coaOptions.value = [];
+    return;
+  }
+  coaSearching.value = true;
+  try {
+    coaOptions.value = await request(`/master/unit/coa-search?keyword=${encodeURIComponent(keyword.trim())}`);
+  } catch (requestError) {
+    error.value = requestError.message;
+  } finally {
+    coaSearching.value = false;
+  }
 }
+
+function selectCoa(coa) {
+  form.value.coaId = coa.id;
+  form.value.coaKeyword = `${coa.coaNo} - ${coa.coaName}`;
+  coaOptions.value = [];
+  coaSearchOpen.value = false;
+}
+
 
 async function initialize() {
   loading.value = true;
   error.value = '';
   try {
     await Promise.all([loadUnits(), loadDivisionOptions(), loadWarehouseOptions()]);
-    await searchCoa();
   } catch (requestError) {
     error.value = requestError.message;
   } finally {
@@ -109,11 +131,13 @@ function resetForm() {
     divisionId: null,
     unitType: 1,
     warehouseId: null,
-    coaId: null
+    coaId: null,
+    coaKeyword: ''
   };
   selectedId.value = null;
   coaKeyword.value = '';
   coaOptions.value = [];
+  coaSearchOpen.value = false;
 }
 
 function selectRow(row) {
@@ -125,10 +149,13 @@ function selectRow(row) {
     divisionId: row.divisionId,
     unitType: row.unitType ?? 1,
     warehouseId: row.warehouseId,
-    coaId: row.coaId
+    coaId: row.coaId,
+    coaKeyword: row.coaNo || ''
   };
-  coaKeyword.value = row.coaNo || '';
+  coaOptions.value = [];
 }
+
+
 
 function unitTypeLabel(value) {
   return value === 0 ? 'NON TRANSAKSIONAL' : 'TRANSAKSIONAL';
@@ -263,25 +290,56 @@ onMounted(initialize);
             </select>
           </div>
           <div class="field">
-            <label for="unit-coa">NO. COA</label>
-            <div class="coa-search">
+            <label for="coa-search">NO. COA</label>
+            <div class="bandbox">
               <input
-                id="unit-coa"
-                v-model="coaKeyword"
+                id="coa-search"
+                v-model="form.coaKeyword"
                 type="text"
-                placeholder="Cari no. coa"
-                @keyup.enter="searchCoa"
+                placeholder="Pilih COA"
+                readonly
+                @focus="coaSearchOpen = true"
               />
-              <button class="small-button" type="button" @click="searchCoa">CARI</button>
+              <button class="bandbox-btn" type="button" @click="coaSearchOpen = !coaSearchOpen">▾</button>
             </div>
-            <select v-if="coaOptions.length" v-model="form.coaId" class="coa-select">
-              <option :value="null">-- Pilih COA --</option>
-              <option v-for="option in coaOptions" :key="option.coaId" :value="option.coaId">
-                {{ option.acctNo }} - {{ option.acctName }}
-              </option>
-            </select>
+            <div v-if="coaSearchOpen" class="bandbox-popup">
+              <div class="bandbox-search">
+                <input
+                  v-model="coaKeyword"
+                  type="text"
+                  placeholder="Cari kode/nama COA"
+                  @keyup.enter="searchCoa"
+                />
+                <button class="small-button" type="button" :disabled="coaSearching" @click="searchCoa">
+                  CARI
+                </button>
+              </div>
+              <table class="table bandbox-table">
+                <thead>
+                  <tr>
+                    <th>NO. COA</th>
+                    <th>NAMA COA</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="coa in coaOptions"
+                    :key="coa.id"
+                    @click="selectCoa(coa)"
+                  >
+                    <td class="strong">{{ coa.coaNo }}</td>
+                    <td>{{ coa.coaName }}</td>
+                  </tr>
+
+                  <tr v-if="!coaOptions.length">
+                    <td colspan="2" class="empty-state">Ketik kode/nama COA lalu tekan CARI.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
+
 
         <div class="form-actions">
           <button class="btn btn--primary" type="button" :disabled="saving" @click="doSave">
@@ -356,15 +414,25 @@ onMounted(initialize);
 .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
 .card-title { margin: 0 0 16px; color: #304b73; font-size: 15px; }
 
-.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 16px; }
+.form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field label { font-size: 12px; font-weight: 700; color: #304b73; }
-.field input, .field select { padding: 8px 10px; border: 1px solid #d1d9e6; border-radius: 6px; font-size: 14px; text-transform: uppercase; }
+.field input, .field select { padding: 8px 10px; border: 1px solid #d1d9e6; border-radius: 6px; font-size: 14px; }
+.field input { text-transform: uppercase; }
 .field input:focus, .field select:focus { outline: none; border-color: #1d4ed8; box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.15); }
+.field input[readonly] { background: #f6f8fb; color: #6b7280; }
 
-.coa-search { display: flex; gap: 6px; }
-.coa-search input { flex: 1; }
-.coa-select { margin-top: 6px; }
+.bandbox { display: flex; align-items: stretch; }
+.bandbox input { flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.bandbox-btn { padding: 0 12px; border: 1px solid #d1d9e6; border-left: none; border-radius: 0 6px 6px 0; background: #f6f8fb; cursor: pointer; }
+
+.bandbox-popup { border: 1px solid #d1d9e6; border-radius: 8px; padding: 10px; background: #fff; box-shadow: 0 8px 20px rgba(0,0,0,0.12); margin-top: 4px; }
+.bandbox-search { display: flex; gap: 8px; margin-bottom: 8px; }
+.bandbox-search input { flex: 1; text-transform: uppercase; }
+.bandbox-table { font-size: 13px; }
+.bandbox-table tbody tr { cursor: pointer; }
+.bandbox-table tbody tr:hover { background: #f6f8fb; }
+
 
 .form-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .btn { padding: 8px 16px; font-size: 13px; font-weight: 700; border: 1px solid #d1d9e6; border-radius: 6px; background: #fff; color: #304b73; cursor: pointer; }

@@ -77,27 +77,19 @@ public class UnitService {
     }
 
     /**
-     * Pencarian COA untuk bandbox NO. COA. Mengikuti
-     * {@code CoaDAO.getCoaByCodeAndName()}.
+     * Pencarian COA untuk bandbox NO. COA. Mencari berdasarkan account code
+     * (v_acct_no) ATAU account name (v_acct_name), keduanya memakai LIKE.
      */
     public List<CoaOptionResponse> searchCoa(String keyword) {
         String normalized = keyword == null ? "" : keyword.trim();
         String like = "%" + normalized.toUpperCase(Locale.ROOT) + "%";
-        String sql;
-        Object param;
-        if (normalized.startsWith("%%")) {
-            sql = "select n_coa_id, v_acct_no, v_acct_name from ms_coa "
-                    + "where upper(v_acct_name) like ? limit 100";
-            param = like;
-        } else {
-            sql = "select n_coa_id, v_acct_no, v_acct_name from ms_coa "
-                    + "where upper(v_acct_no) like ? limit 100";
-            param = like;
-        }
+        String sql = "select n_coa_id, v_acct_no, v_acct_name from ms_coa "
+                + "where upper(v_acct_no) like ? or upper(v_acct_name) like ? "
+                + "order by v_acct_no limit 100";
         return jdbcTemplate.query(sql, (resultSet, rowNum) -> new CoaOptionResponse(
                 resultSet.getInt("n_coa_id"),
                 resultSet.getString("v_acct_no"),
-                resultSet.getString("v_acct_name")), param);
+                resultSet.getString("v_acct_name")), like, like);
     }
 
     /**
