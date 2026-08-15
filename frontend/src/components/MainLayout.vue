@@ -8,9 +8,11 @@ import BedDisplaySection from './BedDisplaySection.vue';
 import BedInfoSection from './BedInfoSection.vue';
 import BedSection from './BedSection.vue';
 import CoaSection from './CoaSection.vue';
+import DivisionSection from './DivisionSection.vue';
 
 
 import GimSection from './GimSection.vue';
+
 import GroupMasterSection from './GroupMasterSection.vue';
 import InsuranceSection from './InsuranceSection.vue';
 import ItemInventorySection from './ItemInventorySection.vue';
@@ -30,6 +32,7 @@ import ScreenMasterSection from './ScreenMasterSection.vue';
 import TreatmentClassSection from './TreatmentClassSection.vue';
 import TreatmentGroupSection from './TreatmentGroupSection.vue';
 import TreatmentSection from './TreatmentSection.vue';
+import UnitSection from './UnitSection.vue';
 import UserMaintenanceSection from './UserMaintenanceSection.vue';
 import WarehouseSection from './WarehouseSection.vue';
 
@@ -73,7 +76,10 @@ const screenViewMap = {
   'SC0072': 'bed-info',
   'SCM0059': 'poly-doctor',
   'SCM0021': 'treatment-class',
+  'SCM0022': 'division',
   'SCM0023': 'treatment-group',
+  'SCM0024': 'unit',
+
   'SCM0026': 'treatment',
   'SCM0056': 'batch-treatment',
   'SCM0019': 'room',
@@ -133,7 +139,10 @@ function screenIcon(screenCode) {
     'SC0072': '🛏️',
     'SCM0059': '🩺',
     'SCM0021': '🏷️',
+    'SCM0022': '🗂️',
     'SCM0023': '🗂️',
+    'SCM0024': '🏢',
+
     'SCM0026': '🩺',
     'SCM0056': '🩺',
     'SCM0019': '🛏️',
@@ -353,8 +362,20 @@ const apotikUnits = computed(() => {
         @session-expired="emit('session-expired', $event)"
       />
 
+      <DivisionSection
+        v-else-if="selectedView === 'division'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
       <TreatmentGroupSection
         v-else-if="selectedView === 'treatment-group'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <UnitSection
+        v-else-if="selectedView === 'unit'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
       />
