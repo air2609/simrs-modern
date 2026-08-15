@@ -9,11 +9,12 @@ import BedInfoSection from './BedInfoSection.vue';
 import BedSection from './BedSection.vue';
 import CoaSection from './CoaSection.vue';
 import DivisionSection from './DivisionSection.vue';
-
+import DoctorSection from './DoctorSection.vue';
 
 import GimSection from './GimSection.vue';
 
 import GroupMasterSection from './GroupMasterSection.vue';
+import Icd9cmSection from './Icd9cmSection.vue';
 import IcdSection from './IcdSection.vue';
 
 import InsuranceSection from './InsuranceSection.vue';
@@ -81,6 +82,7 @@ const screenViewMap = {
   'SCM0022': 'division',
   'SCM0023': 'treatment-group',
   'SCM0024': 'unit',
+  'SCM0030': 'doctor',
 
   'SCM0026': 'treatment',
   'SCM0056': 'batch-treatment',
@@ -94,7 +96,8 @@ const screenViewMap = {
   'SCM0040': 'item-measurement',
   'SCM0046': 'coa',
   'SCM0047': 'gim',
-  'SCM0027': 'icd'
+  'SCM0027': 'icd',
+  'SCM0028': 'icd9cm'
 };
 
 
@@ -146,6 +149,7 @@ function screenIcon(screenCode) {
     'SCM0022': '🗂️',
     'SCM0023': '🗂️',
     'SCM0024': '🏢',
+    'SCM0030': '🩺',
 
     'SCM0026': '🩺',
     'SCM0056': '🩺',
@@ -159,7 +163,8 @@ function screenIcon(screenCode) {
     'SCM0040': '📏',
     'SCM0046': '📒',
     'SCM0047': '⚙️',
-    'SCM0027': '🩺'
+    'SCM0027': '🩺',
+    'SCM0028': '🩺'
   };
 
 
@@ -386,6 +391,12 @@ const apotikUnits = computed(() => {
         @session-expired="emit('session-expired', $event)"
       />
 
+      <DoctorSection
+        v-else-if="selectedView === 'doctor'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
       <TreatmentSection
         v-else-if="selectedView === 'treatment'"
         :api-base-url="apiBaseUrl"
@@ -454,6 +465,12 @@ const apotikUnits = computed(() => {
 
       <IcdSection
         v-else-if="selectedView === 'icd'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <Icd9cmSection
+        v-else-if="selectedView === 'icd9cm'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
       />
