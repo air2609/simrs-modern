@@ -5,10 +5,15 @@ import ApotikSection from './ApotikSection.vue';
 import BankSection from './BankSection.vue';
 import BedDisplaySection from './BedDisplaySection.vue';
 import BedInfoSection from './BedInfoSection.vue';
+import CoaSection from './CoaSection.vue';
+
 
 import GroupMasterSection from './GroupMasterSection.vue';
 import InsuranceSection from './InsuranceSection.vue';
+import ItemInventorySection from './ItemInventorySection.vue';
+import ItemMeasurementSection from './ItemMeasurementSection.vue';
 import ItemSection from './ItemSection.vue';
+
 
 import JournalSection from './JournalSection.vue';
 import LocationMasterSection from './LocationMasterSection.vue';
@@ -68,9 +73,14 @@ const screenViewMap = {
   'SCM0026': 'treatment',
   'SCM0033': 'bank',
   'SCM0034': 'insurance',
+  'SCM0032': 'item-inventory',
   'SCM0035': 'warehouse',
-  'SCM0038': 'item'
+  'SCM0038': 'item',
+  'SCM0040': 'item-measurement',
+  'SCM0046': 'coa'
 };
+
+
 
 
 
@@ -117,11 +127,16 @@ function screenIcon(screenCode) {
     'SCM0021': '🏷️',
     'SCM0023': '🗂️',
     'SCM0026': '🩺',
+    'SCM0032': '📦',
     'SCM0033': '🏦',
     'SCM0034': '🛡️',
     'SCM0035': '🏬',
-    'SCM0038': '📦'
+    'SCM0038': '📦',
+    'SCM0040': '📏',
+    'SCM0046': '📒'
   };
+
+
 
 
 
@@ -362,7 +377,27 @@ const apotikUnits = computed(() => {
         @session-expired="emit('session-expired', $event)"
       />
 
+      <ItemMeasurementSection
+        v-else-if="selectedView === 'item-measurement'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <CoaSection
+        v-else-if="selectedView === 'coa'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <ItemInventorySection
+        v-else-if="selectedView === 'item-inventory'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+
       <LocationMasterSection
+
 
 
         v-else
