@@ -17,6 +17,8 @@ const typeOptions = ref([]);
 const parentOptions = ref([]);
 const statusFilter = ref(0); // 0 = ALL, 1 = ACTIVE, 2 = INACTIVE
 const typeFilter = ref(null); // null = ALL types
+const keyword = ref('');
+
 
 
 const form = ref({
@@ -81,9 +83,13 @@ async function loadCoa() {
   if (typeFilter.value != null) {
     params.set('typeId', String(typeFilter.value));
   }
+  if (keyword.value.trim()) {
+    params.set('keyword', keyword.value.trim());
+  }
   rows.value = await request(`/accounting/coa?${params.toString()}`);
   currentPage.value = 1;
 }
+
 
 
 async function loadTypes() {
@@ -298,7 +304,17 @@ onMounted(initialize);
               {{ type.typeName }}
             </option>
           </select>
+          <input
+            v-model="keyword"
+            class="search-input"
+            type="text"
+            placeholder="Cari No. COA / Nama..."
+            @keyup.enter="loadCoa"
+          />
+          <button class="small-button" type="button" @click="loadCoa">🔍 CARI</button>
+          <button v-if="keyword" class="small-button" type="button" @click="keyword = ''; loadCoa()">✖ Bersihkan</button>
         </div>
+
 
         <div class="table-wrap">
           <table class="table">
@@ -402,8 +418,11 @@ onMounted(initialize);
 .btn--danger { background: #fff; border-color: #f0b3bd; color: #a32943; }
 .btn--danger:hover { background: #fde8ea; }
 
-.search-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+.search-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
 .status-filter { padding: 8px 10px; border: 1px solid #d1d9e6; border-radius: 6px; font-size: 14px; }
+.search-input { flex: 1; min-width: 200px; padding: 8px 10px; border: 1px solid #d1d9e6; border-radius: 6px; font-size: 14px; }
+.search-input:focus { outline: none; border-color: #1d4ed8; box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.15); }
+
 
 .table-wrap { overflow: auto; margin: 10px 0; }
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }

@@ -34,12 +34,40 @@ public class CoaService {
      * Daftar COA dalam bentuk tree parent-child.
      * Mengikuti {@code COAManagerImpl.redrawCoaController()}.
      */
-    public List<CoaRowResponse> getCoaTree(Integer status, Integer typeId) {
+    public List<CoaRowResponse> getCoaTree(Integer status, Integer typeId, String keyword) {
         int statusSearch = status == null ? COA_ALL : status;
-        List<CoaRowResponse> headers = queryCoa(statusSearch, typeId);
+        String searchKeyword = normalizeKeyword(keyword);
+        boolean hasKeyword = searchKeyword != null && !searchKeyword.isEmpty();
+
+        List<CoaRowResponse> headers;
+        if (hasKeyword) {
+            // Saat ada keyword, cari SEMUA record COA (header + child) yang cocok.
+            // Kemudian pastikan header dari child yang cocok ikut ditampilkan.
+            List<CoaRowResponse> allMatches = queryAllCoa(statusSearch, typeId, searchKeyword);
+            Map<Integer, CoaRowResponse> headerById = new LinkedHashMap<>();
+            for (CoaRowResponse match : allMatches) {
+                if (match.getSupCoaId() == null) {
+                    headerById.put(match.getCoaId(), match);
+                }
+            }
+            // Tambahkan header dari child yang cocok (jika belum ada).
+            for (CoaRowResponse match : allMatches) {
+                if (match.getSupCoaId() != null && !headerById.containsKey(match.getSupCoaId())) {
+                    CoaRowResponse parent = findHeaderById(match.getSupCoaId(), statusSearch, typeId);
+                    if (parent != null) {
+                        headerById.put(parent.getCoaId(), parent);
+                    }
+                }
+            }
+            headers = new ArrayList<>(headerById.values());
+        } else {
+            headers = queryCoa(statusSearch, typeId, null);
+        }
+
         Map<Integer, List<CoaRowResponse>> childrenByParent = new LinkedHashMap<>();
         for (CoaRowResponse header : headers) {
-            childrenByParent.put(header.getCoaId(), queryChildren(header.getCoaId(), statusSearch, typeId));
+            childrenByParent.put(header.getCoaId(),
+                    queryChildren(header.getCoaId(), statusSearch, typeId, searchKeyword));
         }
         List<CoaRowResponse> result = new ArrayList<>();
         for (CoaRowResponse header : headers) {
@@ -173,10 +201,11 @@ public class CoaService {
         return affected > 0;
     }
 
-    private List<CoaRowResponse> queryCoa(int status, Integer typeId) {
+    private List<CoaRowResponse> queryCoa(int status, Integer typeId, String keyword) {
         boolean hasType = typeId != null && typeId != COA_ALL;
+        boolean hasKeyword = keyword != null && !keyword.isEmpty();
         String sql;
-        if (status == COA_ALL && !hasType) {
+        if (status == COA_ALL && !hasType && !hasKeyword) {
             sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
                     + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
                     + "ct.n_ct_natural_balance, c.n_status "
@@ -185,7 +214,7 @@ public class CoaService {
                     + "where c.n_sup_coa_id is null "
                     + "order by c.v_acct_no";
             return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet));
-        } else if (status == COA_ALL && hasType) {
+        } else if (status == COA_ALL && hasType && !hasKeyword) {
             sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
                     + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
                     + "ct.n_ct_natural_balance, c.n_status "
@@ -194,7 +223,7 @@ public class CoaService {
                     + "where c.n_sup_coa_id is null and c.n_type = ? "
                     + "order by c.v_acct_no";
             return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), typeId);
-        } else if (status != COA_ALL && !hasType) {
+        } else if (status != COA_ALL && !hasType && !hasKeyword) {
             sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
                     + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
                     + "ct.n_ct_natural_balance, c.n_status "
@@ -203,7 +232,7 @@ public class CoaService {
                     + "where c.n_sup_coa_id is null and c.n_status = ? "
                     + "order by c.v_acct_no";
             return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), status);
-        } else {
+        } else if (status != COA_ALL && hasType && !hasKeyword) {
             sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
                     + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
                     + "ct.n_ct_natural_balance, c.n_status "
@@ -212,13 +241,54 @@ public class CoaService {
                     + "where c.n_sup_coa_id is null and c.n_status = ? and c.n_type = ? "
                     + "order by c.v_acct_no";
             return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), status, typeId);
+        } else if (status == COA_ALL && !hasType && hasKeyword) {
+            sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
+                    + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
+                    + "ct.n_ct_natural_balance, c.n_status "
+                    + "from ms_coa c "
+                    + "left join ms_coa_type ct on ct.n_ct_id = c.n_type "
+                    + "where c.n_sup_coa_id is null "
+                    + "and (upper(c.v_acct_no) like ? or upper(c.v_acct_name) like ?) "
+                    + "order by c.v_acct_no";
+            return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), keyword, keyword);
+        } else if (status == COA_ALL && hasType && hasKeyword) {
+            sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
+                    + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
+                    + "ct.n_ct_natural_balance, c.n_status "
+                    + "from ms_coa c "
+                    + "left join ms_coa_type ct on ct.n_ct_id = c.n_type "
+                    + "where c.n_sup_coa_id is null and c.n_type = ? "
+                    + "and (upper(c.v_acct_no) like ? or upper(c.v_acct_name) like ?) "
+                    + "order by c.v_acct_no";
+            return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), typeId, keyword, keyword);
+        } else if (status != COA_ALL && !hasType && hasKeyword) {
+            sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
+                    + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
+                    + "ct.n_ct_natural_balance, c.n_status "
+                    + "from ms_coa c "
+                    + "left join ms_coa_type ct on ct.n_ct_id = c.n_type "
+                    + "where c.n_sup_coa_id is null and c.n_status = ? "
+                    + "and (upper(c.v_acct_no) like ? or upper(c.v_acct_name) like ?) "
+                    + "order by c.v_acct_no";
+            return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), status, keyword, keyword);
+        } else {
+            sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
+                    + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
+                    + "ct.n_ct_natural_balance, c.n_status "
+                    + "from ms_coa c "
+                    + "left join ms_coa_type ct on ct.n_ct_id = c.n_type "
+                    + "where c.n_sup_coa_id is null and c.n_status = ? and c.n_type = ? "
+                    + "and (upper(c.v_acct_no) like ? or upper(c.v_acct_name) like ?) "
+                    + "order by c.v_acct_no";
+            return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), status, typeId, keyword, keyword);
         }
     }
 
-    private List<CoaRowResponse> queryChildren(Integer parentId, int status, Integer typeId) {
+    private List<CoaRowResponse> queryChildren(Integer parentId, int status, Integer typeId, String keyword) {
         boolean hasType = typeId != null && typeId != COA_ALL;
+        boolean hasKeyword = keyword != null && !keyword.isEmpty();
         String sql;
-        if (status == COA_ALL && !hasType) {
+        if (status == COA_ALL && !hasType && !hasKeyword) {
             sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
                     + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
                     + "ct.n_ct_natural_balance, c.n_status "
@@ -227,7 +297,7 @@ public class CoaService {
                     + "where c.n_sup_coa_id = ? "
                     + "order by c.v_acct_no";
             return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), parentId);
-        } else if (status == COA_ALL && hasType) {
+        } else if (status == COA_ALL && hasType && !hasKeyword) {
             sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
                     + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
                     + "ct.n_ct_natural_balance, c.n_status "
@@ -236,7 +306,7 @@ public class CoaService {
                     + "where c.n_sup_coa_id = ? and c.n_type = ? "
                     + "order by c.v_acct_no";
             return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), parentId, typeId);
-        } else if (status != COA_ALL && !hasType) {
+        } else if (status != COA_ALL && !hasType && !hasKeyword) {
             sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
                     + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
                     + "ct.n_ct_natural_balance, c.n_status "
@@ -245,7 +315,7 @@ public class CoaService {
                     + "where c.n_sup_coa_id = ? and c.n_status = ? "
                     + "order by c.v_acct_no";
             return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), parentId, status);
-        } else {
+        } else if (status != COA_ALL && hasType && !hasKeyword) {
             sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
                     + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
                     + "ct.n_ct_natural_balance, c.n_status "
@@ -254,10 +324,149 @@ public class CoaService {
                     + "where c.n_sup_coa_id = ? and c.n_status = ? and c.n_type = ? "
                     + "order by c.v_acct_no";
             return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), parentId, status, typeId);
+        } else if (status == COA_ALL && !hasType && hasKeyword) {
+            sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
+                    + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
+                    + "ct.n_ct_natural_balance, c.n_status "
+                    + "from ms_coa c "
+                    + "left join ms_coa_type ct on ct.n_ct_id = c.n_type "
+                    + "where c.n_sup_coa_id = ? "
+                    + "and (upper(c.v_acct_no) like ? or upper(c.v_acct_name) like ?) "
+                    + "order by c.v_acct_no";
+            return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), parentId, keyword, keyword);
+        } else if (status == COA_ALL && hasType && hasKeyword) {
+            sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
+                    + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
+                    + "ct.n_ct_natural_balance, c.n_status "
+                    + "from ms_coa c "
+                    + "left join ms_coa_type ct on ct.n_ct_id = c.n_type "
+                    + "where c.n_sup_coa_id = ? and c.n_type = ? "
+                    + "and (upper(c.v_acct_no) like ? or upper(c.v_acct_name) like ?) "
+                    + "order by c.v_acct_no";
+            return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), parentId, typeId, keyword,
+                    keyword);
+        } else if (status != COA_ALL && !hasType && hasKeyword) {
+            sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
+                    + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
+                    + "ct.n_ct_natural_balance, c.n_status "
+                    + "from ms_coa c "
+                    + "left join ms_coa_type ct on ct.n_ct_id = c.n_type "
+                    + "where c.n_sup_coa_id = ? and c.n_status = ? "
+                    + "and (upper(c.v_acct_no) like ? or upper(c.v_acct_name) like ?) "
+                    + "order by c.v_acct_no";
+            return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), parentId, status, keyword,
+                    keyword);
+        } else {
+            sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
+                    + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
+                    + "ct.n_ct_natural_balance, c.n_status "
+                    + "from ms_coa c "
+                    + "left join ms_coa_type ct on ct.n_ct_id = c.n_type "
+                    + "where c.n_sup_coa_id = ? and c.n_status = ? and c.n_type = ? "
+                    + "and (upper(c.v_acct_no) like ? or upper(c.v_acct_name) like ?) "
+                    + "order by c.v_acct_no";
+            return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), parentId, status, typeId, keyword,
+                    keyword);
+        }
+    }
+
+    /**
+     * Cari SEMUA record COA (header + child) yang cocok dengan keyword.
+     * Digunakan saat pencarian keyword aktif.
+     */
+    private List<CoaRowResponse> queryAllCoa(int status, Integer typeId, String keyword) {
+        boolean hasType = typeId != null && typeId != COA_ALL;
+        String sql;
+        if (status == COA_ALL && !hasType) {
+            sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
+                    + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
+                    + "ct.n_ct_natural_balance, c.n_status "
+                    + "from ms_coa c "
+                    + "left join ms_coa_type ct on ct.n_ct_id = c.n_type "
+                    + "where (upper(c.v_acct_no) like ? or upper(c.v_acct_name) like ?) "
+                    + "order by c.v_acct_no";
+            return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), keyword, keyword);
+        } else if (status == COA_ALL && hasType) {
+            sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
+                    + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
+                    + "ct.n_ct_natural_balance, c.n_status "
+                    + "from ms_coa c "
+                    + "left join ms_coa_type ct on ct.n_ct_id = c.n_type "
+                    + "where c.n_type = ? "
+                    + "and (upper(c.v_acct_no) like ? or upper(c.v_acct_name) like ?) "
+                    + "order by c.v_acct_no";
+            return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), typeId, keyword, keyword);
+        } else if (status != COA_ALL && !hasType) {
+            sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
+                    + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
+                    + "ct.n_ct_natural_balance, c.n_status "
+                    + "from ms_coa c "
+                    + "left join ms_coa_type ct on ct.n_ct_id = c.n_type "
+                    + "where c.n_status = ? "
+                    + "and (upper(c.v_acct_no) like ? or upper(c.v_acct_name) like ?) "
+                    + "order by c.v_acct_no";
+            return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), status, keyword, keyword);
+        } else {
+            sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
+                    + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
+                    + "ct.n_ct_natural_balance, c.n_status "
+                    + "from ms_coa c "
+                    + "left join ms_coa_type ct on ct.n_ct_id = c.n_type "
+                    + "where c.n_status = ? and c.n_type = ? "
+                    + "and (upper(c.v_acct_no) like ? or upper(c.v_acct_name) like ?) "
+                    + "order by c.v_acct_no";
+            return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), status, typeId, keyword, keyword);
+        }
+    }
+
+    /**
+     * Ambil satu header COA berdasarkan id (tanpa filter keyword).
+     */
+    private CoaRowResponse findHeaderById(Integer coaId, int status, Integer typeId) {
+        boolean hasType = typeId != null && typeId != COA_ALL;
+        String sql;
+        if (status == COA_ALL && !hasType) {
+            sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
+                    + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
+                    + "ct.n_ct_natural_balance, c.n_status "
+                    + "from ms_coa c "
+                    + "left join ms_coa_type ct on ct.n_ct_id = c.n_type "
+                    + "where c.n_coa_id = ? and c.n_sup_coa_id is null";
+            return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), coaId)
+                    .stream().findFirst().orElse(null);
+        } else if (status == COA_ALL && hasType) {
+            sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
+                    + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
+                    + "ct.n_ct_natural_balance, c.n_status "
+                    + "from ms_coa c "
+                    + "left join ms_coa_type ct on ct.n_ct_id = c.n_type "
+                    + "where c.n_coa_id = ? and c.n_sup_coa_id is null and c.n_type = ?";
+            return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), coaId, typeId)
+                    .stream().findFirst().orElse(null);
+        } else if (status != COA_ALL && !hasType) {
+            sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
+                    + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
+                    + "ct.n_ct_natural_balance, c.n_status "
+                    + "from ms_coa c "
+                    + "left join ms_coa_type ct on ct.n_ct_id = c.n_type "
+                    + "where c.n_coa_id = ? and c.n_sup_coa_id is null and c.n_status = ?";
+            return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), coaId, status)
+                    .stream().findFirst().orElse(null);
+        } else {
+            sql = "select c.n_coa_id, c.n_sup_coa_id, c.n_type, ct.v_ct_name, "
+                    + "c.v_acct_no, c.v_acct_name, c.v_desc, c.n_balance, "
+                    + "ct.n_ct_natural_balance, c.n_status "
+                    + "from ms_coa c "
+                    + "left join ms_coa_type ct on ct.n_ct_id = c.n_type "
+                    + "where c.n_coa_id = ? and c.n_sup_coa_id is null "
+                    + "and c.n_status = ? and c.n_type = ?";
+            return jdbcTemplate.query(sql, (resultSet, rowNum) -> mapRow(resultSet), coaId, status, typeId)
+                    .stream().findFirst().orElse(null);
         }
     }
 
     private CoaRowResponse mapRow(java.sql.ResultSet resultSet) throws java.sql.SQLException {
+
         Integer status = toInteger(resultSet.getObject("n_status"));
         String statusLabel = null;
         if (status != null) {
@@ -313,6 +522,17 @@ public class CoaService {
             return null;
         }
         return value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeKeyword(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim().toUpperCase(Locale.ROOT);
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        return "%" + trimmed + "%";
     }
 
     private String normalizeActor(String username) {

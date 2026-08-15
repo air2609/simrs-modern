@@ -3,11 +3,14 @@ import { computed, ref } from 'vue';
 import AdmissionRegistrationSection from './AdmissionRegistrationSection.vue';
 import ApotikSection from './ApotikSection.vue';
 import BankSection from './BankSection.vue';
+import BatchTreatmentSection from './BatchTreatmentSection.vue';
 import BedDisplaySection from './BedDisplaySection.vue';
 import BedInfoSection from './BedInfoSection.vue';
+import BedSection from './BedSection.vue';
 import CoaSection from './CoaSection.vue';
 
 
+import GimSection from './GimSection.vue';
 import GroupMasterSection from './GroupMasterSection.vue';
 import InsuranceSection from './InsuranceSection.vue';
 import ItemInventorySection from './ItemInventorySection.vue';
@@ -22,6 +25,7 @@ import LaboratoryTransactionSection from './LaboratoryTransactionSection.vue';
 import LaboratoryResultSection from './LaboratoryResultSection.vue';
 import PolyclinicSection from './PolyclinicSection.vue';
 import PolyDoctorSection from './PolyDoctorSection.vue';
+import RoomSection from './RoomSection.vue';
 import ScreenMasterSection from './ScreenMasterSection.vue';
 import TreatmentClassSection from './TreatmentClassSection.vue';
 import TreatmentGroupSection from './TreatmentGroupSection.vue';
@@ -71,13 +75,17 @@ const screenViewMap = {
   'SCM0021': 'treatment-class',
   'SCM0023': 'treatment-group',
   'SCM0026': 'treatment',
+  'SCM0056': 'batch-treatment',
+  'SCM0019': 'room',
+  'SCM0020': 'bed',
   'SCM0033': 'bank',
   'SCM0034': 'insurance',
   'SCM0032': 'item-inventory',
   'SCM0035': 'warehouse',
   'SCM0038': 'item',
   'SCM0040': 'item-measurement',
-  'SCM0046': 'coa'
+  'SCM0046': 'coa',
+  'SCM0047': 'gim'
 };
 
 
@@ -127,13 +135,17 @@ function screenIcon(screenCode) {
     'SCM0021': '🏷️',
     'SCM0023': '🗂️',
     'SCM0026': '🩺',
+    'SCM0056': '🩺',
+    'SCM0019': '🛏️',
+    'SCM0020': '🛏️',
     'SCM0032': '📦',
     'SCM0033': '🏦',
     'SCM0034': '🛡️',
     'SCM0035': '🏬',
     'SCM0038': '📦',
     'SCM0040': '📏',
-    'SCM0046': '📒'
+    'SCM0046': '📒',
+    'SCM0047': '⚙️'
   };
 
 
@@ -353,6 +365,24 @@ const apotikUnits = computed(() => {
         @session-expired="emit('session-expired', $event)"
       />
 
+      <BatchTreatmentSection
+        v-else-if="selectedView === 'batch-treatment'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <RoomSection
+        v-else-if="selectedView === 'room'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <BedSection
+        v-else-if="selectedView === 'bed'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
       <BankSection
         v-else-if="selectedView === 'bank'"
         :api-base-url="apiBaseUrl"
@@ -385,6 +415,12 @@ const apotikUnits = computed(() => {
 
       <CoaSection
         v-else-if="selectedView === 'coa'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <GimSection
+        v-else-if="selectedView === 'gim'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
       />
@@ -447,7 +483,6 @@ const apotikUnits = computed(() => {
 
 /* Accordion menu */
 .accordion-menu {
-  flex: 1;
   overflow-y: auto;
 }
 

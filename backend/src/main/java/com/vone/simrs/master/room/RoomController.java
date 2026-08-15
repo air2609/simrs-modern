@@ -1,4 +1,4 @@
-package com.vone.simrs.accounting.coa;
+package com.vone.simrs.master.room;
 
 import com.vone.simrs.auth.LegacyAuthService;
 import com.vone.simrs.common.api.ApiResponse;
@@ -14,53 +14,44 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * REST controller untuk screen SCM0046 (CHART OF ACCOUNT).
+ * REST controller untuk screen SCM0019 (FORM KAMAR / ROOM MASTER).
  */
 @RestController
-@RequestMapping("/api/accounting/coa")
-public class CoaController {
+@RequestMapping("/api/master/room")
+public class RoomController {
 
-    private final CoaService coaService;
+    private final RoomService roomService;
     private final LegacyAuthService legacyAuthService;
 
-    public CoaController(CoaService coaService, LegacyAuthService legacyAuthService) {
-        this.coaService = coaService;
+    public RoomController(RoomService roomService, LegacyAuthService legacyAuthService) {
+        this.roomService = roomService;
         this.legacyAuthService = legacyAuthService;
     }
 
     @GetMapping
-    public ApiResponse<List<CoaRowResponse>> list(@RequestParam(required = false) Integer status,
-            @RequestParam(required = false) Integer typeId,
-            @RequestParam(required = false) String keyword,
-            HttpServletRequest request) {
+    public ApiResponse<List<RoomRowResponse>> list(HttpServletRequest request) {
         ensureAuthenticated(request.getSession(false));
-        return ApiResponse.ok(coaService.getCoaTree(status, typeId, keyword));
+        return ApiResponse.ok(roomService.getRooms());
     }
 
-    @GetMapping("/types")
-    public ApiResponse<List<CoaTypeOptionResponse>> types(HttpServletRequest request) {
-        ensureAuthenticated(request.getSession(false));
-        return ApiResponse.ok(coaService.getCoaTypes());
-    }
-
-    @GetMapping("/parent-options")
-    public ApiResponse<List<CoaRowResponse>> parentOptions(@RequestParam(required = false) Integer typeId,
+    @GetMapping("/halls")
+    public ApiResponse<List<HallOptionResponse>> halls(@RequestParam(required = false) String name,
             HttpServletRequest request) {
         ensureAuthenticated(request.getSession(false));
-        return ApiResponse.ok(coaService.getCoaParentOptions(typeId));
+        return ApiResponse.ok(roomService.searchHalls(name));
     }
 
     @PostMapping("/save")
-    public ApiResponse<Void> save(@RequestBody CoaSaveRequest body, HttpServletRequest request) {
+    public ApiResponse<Void> save(@RequestBody RoomSaveRequest body, HttpServletRequest request) {
         String username = ensureAuthenticated(request.getSession(false));
-        coaService.save(body, username);
+        roomService.save(body, username);
         return ApiResponse.ok(null);
     }
 
     @DeleteMapping("/delete")
     public ApiResponse<Void> delete(@RequestParam Integer id, HttpServletRequest request) {
         ensureAuthenticated(request.getSession(false));
-        coaService.delete(id);
+        roomService.delete(id);
         return ApiResponse.ok(null);
     }
 
