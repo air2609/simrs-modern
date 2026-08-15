@@ -14,6 +14,8 @@ import DivisionSection from './DivisionSection.vue';
 import GimSection from './GimSection.vue';
 
 import GroupMasterSection from './GroupMasterSection.vue';
+import IcdSection from './IcdSection.vue';
+
 import InsuranceSection from './InsuranceSection.vue';
 import ItemInventorySection from './ItemInventorySection.vue';
 import ItemMeasurementSection from './ItemMeasurementSection.vue';
@@ -91,8 +93,10 @@ const screenViewMap = {
   'SCM0038': 'item',
   'SCM0040': 'item-measurement',
   'SCM0046': 'coa',
-  'SCM0047': 'gim'
+  'SCM0047': 'gim',
+  'SCM0027': 'icd'
 };
+
 
 
 
@@ -154,8 +158,10 @@ function screenIcon(screenCode) {
     'SCM0038': '📦',
     'SCM0040': '📏',
     'SCM0046': '📒',
-    'SCM0047': '⚙️'
+    'SCM0047': '⚙️',
+    'SCM0027': '🩺'
   };
+
 
 
 
@@ -445,6 +451,13 @@ const apotikUnits = computed(() => {
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
       />
+
+      <IcdSection
+        v-else-if="selectedView === 'icd'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
 
       <ItemInventorySection
         v-else-if="selectedView === 'item-inventory'"
