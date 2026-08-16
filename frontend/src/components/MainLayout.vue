@@ -3,13 +3,17 @@ import { computed, ref } from 'vue';
 import AdmissionRegistrationSection from './AdmissionRegistrationSection.vue';
 import ApotikSection from './ApotikSection.vue';
 import BankSection from './BankSection.vue';
+import BatchItemSection from './BatchItemSection.vue';
 import BatchTreatmentSection from './BatchTreatmentSection.vue';
+
 import BedDisplaySection from './BedDisplaySection.vue';
 import BedInfoSection from './BedInfoSection.vue';
 import BedSection from './BedSection.vue';
+import CardTypeSection from './CardTypeSection.vue';
 import CoaSection from './CoaSection.vue';
 import DivisionSection from './DivisionSection.vue';
 import DoctorSection from './DoctorSection.vue';
+
 
 import GimSection from './GimSection.vue';
 
@@ -21,6 +25,7 @@ import InsuranceSection from './InsuranceSection.vue';
 import ItemInventorySection from './ItemInventorySection.vue';
 import ItemMeasurementSection from './ItemMeasurementSection.vue';
 import ItemSection from './ItemSection.vue';
+import ItemSellingPriceSection from './ItemSellingPriceSection.vue';
 
 
 import JournalSection from './JournalSection.vue';
@@ -32,12 +37,15 @@ import PolyclinicSection from './PolyclinicSection.vue';
 import PolyDoctorSection from './PolyDoctorSection.vue';
 import RoomSection from './RoomSection.vue';
 import ScreenMasterSection from './ScreenMasterSection.vue';
+import StaffSection from './StaffSection.vue';
 import TreatmentClassSection from './TreatmentClassSection.vue';
 import TreatmentGroupSection from './TreatmentGroupSection.vue';
 import TreatmentSection from './TreatmentSection.vue';
 import UnitSection from './UnitSection.vue';
 import UserMaintenanceSection from './UserMaintenanceSection.vue';
+import VendorSection from './VendorSection.vue';
 import WarehouseSection from './WarehouseSection.vue';
+
 
 
 const props = defineProps({
@@ -83,17 +91,25 @@ const screenViewMap = {
   'SCM0023': 'treatment-group',
   'SCM0024': 'unit',
   'SCM0030': 'doctor',
+  'SCM0031': 'staff',
+  'SCM0043': 'vendor',
 
   'SCM0026': 'treatment',
+
   'SCM0056': 'batch-treatment',
+  'SCM0055': 'batch-item',
   'SCM0019': 'room',
+
   'SCM0020': 'bed',
   'SCM0033': 'bank',
+  'SCM0048': 'card-type',
   'SCM0034': 'insurance',
+
   'SCM0032': 'item-inventory',
   'SCM0035': 'warehouse',
   'SCM0038': 'item',
   'SCM0040': 'item-measurement',
+  'SCM0041': 'item-selling-price',
   'SCM0046': 'coa',
   'SCM0047': 'gim',
   'SCM0027': 'icd',
@@ -150,17 +166,25 @@ function screenIcon(screenCode) {
     'SCM0023': '🗂️',
     'SCM0024': '🏢',
     'SCM0030': '🩺',
+    'SCM0031': '👥',
+    'SCM0043': '🏭',
 
     'SCM0026': '🩺',
+
     'SCM0056': '🩺',
+    'SCM0055': '📦',
     'SCM0019': '🛏️',
+
     'SCM0020': '🛏️',
     'SCM0032': '📦',
     'SCM0033': '🏦',
+    'SCM0048': '💳',
     'SCM0034': '🛡️',
+
     'SCM0035': '🏬',
     'SCM0038': '📦',
     'SCM0040': '📏',
+    'SCM0041': '💰',
     'SCM0046': '📒',
     'SCM0047': '⚙️',
     'SCM0027': '🩺',
@@ -397,7 +421,20 @@ const apotikUnits = computed(() => {
         @session-expired="emit('session-expired', $event)"
       />
 
+      <StaffSection
+        v-else-if="selectedView === 'staff'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <VendorSection
+        v-else-if="selectedView === 'vendor'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
       <TreatmentSection
+
         v-else-if="selectedView === 'treatment'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
@@ -409,7 +446,14 @@ const apotikUnits = computed(() => {
         @session-expired="emit('session-expired', $event)"
       />
 
+      <BatchItemSection
+        v-else-if="selectedView === 'batch-item'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
       <RoomSection
+
         v-else-if="selectedView === 'room'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
@@ -427,7 +471,14 @@ const apotikUnits = computed(() => {
         @session-expired="emit('session-expired', $event)"
       />
 
+      <CardTypeSection
+        v-else-if="selectedView === 'card-type'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
       <InsuranceSection
+
         v-else-if="selectedView === 'insurance'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
@@ -447,6 +498,12 @@ const apotikUnits = computed(() => {
 
       <ItemMeasurementSection
         v-else-if="selectedView === 'item-measurement'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <ItemSellingPriceSection
+        v-else-if="selectedView === 'item-selling-price'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
       />
