@@ -36,6 +36,12 @@ import LocationMasterSection from './LocationMasterSection.vue';
 import LabTreatmentMasterSection from './LabTreatmentMasterSection.vue';
 import LaboratoryTransactionSection from './LaboratoryTransactionSection.vue';
 import LaboratoryResultSection from './LaboratoryResultSection.vue';
+import MrPreparationSection from './MrPreparationSection.vue';
+import MrBorrowRequestSection from './MrBorrowRequestSection.vue';
+import MrFileStatusSection from './MrFileStatusSection.vue';
+import MrLoanListSection from './MrLoanListSection.vue';
+import DiagnoseSection from './DiagnoseSection.vue';
+import MrDiagnosaSection from './MrDiagnosaSection.vue';
 import PolyclinicSection from './PolyclinicSection.vue';
 import PolyDoctorSection from './PolyDoctorSection.vue';
 import RoomSection from './RoomSection.vue';
@@ -79,6 +85,12 @@ const screenViewMap = {
   'SC0091': 'polyclinic',
   'SC0041': 'laboratory-transaction',
   'SC0043': 'laboratory-result',
+  'SC0006': 'mr-preparation',
+  'SC0175': 'mr-borrow-request',
+  'SC0081': 'mr-file-status',
+  'SC0082': 'mr-loan-list',
+  'SC0083': 'mr-diagnosa',
+  'SC0206': 'mr-diagnose',
   'SC0201': 'journal',
   'SC0190': 'expired-item',
   'SCM0051': 'lab-treatment-master',
@@ -157,6 +169,12 @@ function screenIcon(screenCode) {
     'SC0091': '🩺',
     'SC0041': '🧪',
     'SC0043': '📊',
+    'SC0006': '🗂️',
+    'SC0175': '📤',
+    'SC0081': '🗃️',
+    'SC0082': '🔁',
+    'SC0083': '📝',
+    'SC0206': '📝',
     'SC0201': '📒',
     'SC0190': '📦',
     'SCM0051': '🔬',
@@ -331,6 +349,42 @@ const apotikUnits = computed(() => {
         v-else-if="selectedView === 'apotik'"
         :api-base-url="apiBaseUrl"
         :available-units="apotikUnits"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <MrPreparationSection
+        v-else-if="selectedView === 'mr-preparation'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <MrBorrowRequestSection
+        v-else-if="selectedView === 'mr-borrow-request'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <MrFileStatusSection
+        v-else-if="selectedView === 'mr-file-status'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <MrLoanListSection
+        v-else-if="selectedView === 'mr-loan-list'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <DiagnoseSection
+        v-else-if="selectedView === 'mr-diagnose'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <MrDiagnosaSection
+        v-else-if="selectedView === 'mr-diagnosa'"
+        :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
       />
 
