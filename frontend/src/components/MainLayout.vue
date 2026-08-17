@@ -41,9 +41,14 @@ import MrBorrowRequestSection from './MrBorrowRequestSection.vue';
 import MrFileStatusSection from './MrFileStatusSection.vue';
 import MrLoanListSection from './MrLoanListSection.vue';
 import DiagnoseSection from './DiagnoseSection.vue';
+import DeliveryOrderSection from './DeliveryOrderSection.vue';
 import MrDiagnosaSection from './MrDiagnosaSection.vue';
 import PolyclinicSection from './PolyclinicSection.vue';
 import PolyDoctorSection from './PolyDoctorSection.vue';
+import PurchaseOrderApprovalSection from './PurchaseOrderApprovalSection.vue';
+import PurchaseOrderSection from './PurchaseOrderSection.vue';
+import PurchaseRequestApprovalSection from './PurchaseRequestApprovalSection.vue';
+import PurchaseRequestSection from './PurchaseRequestSection.vue';
 import RoomSection from './RoomSection.vue';
 import ScreenMasterSection from './ScreenMasterSection.vue';
 import StaffSection from './StaffSection.vue';
@@ -93,6 +98,11 @@ const screenViewMap = {
   'SC0206': 'mr-diagnose',
   'SC0201': 'journal',
   'SC0190': 'expired-item',
+  'SC0191': 'purchase-request',
+  'SC0192': 'purchase-request-approval',
+  'SC0193': 'purchase-order',
+  'SC0194': 'purchase-order-approval',
+  'SC0195': 'delivery-order',
   'SCM0051': 'lab-treatment-master',
   'SCM0013': 'location-master',
   'SCM0014': 'location-master',
@@ -177,6 +187,11 @@ function screenIcon(screenCode) {
     'SC0206': '📝',
     'SC0201': '📒',
     'SC0190': '📦',
+    'SC0191': '🛒',
+    'SC0192': '✅',
+    'SC0193': '🛍️',
+    'SC0194': '✅',
+    'SC0195': '🚚',
     'SCM0051': '🔬',
     'SCM0013': '📍',
     'SCM0014': '📍',
@@ -416,6 +431,39 @@ const apotikUnits = computed(() => {
         v-else-if="selectedView === 'expired-item'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
+      />
+
+      <PurchaseRequestSection
+        v-else-if="selectedView === 'purchase-request'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <PurchaseRequestApprovalSection
+        v-else-if="selectedView === 'purchase-request-approval'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <PurchaseOrderSection
+        v-else-if="selectedView === 'purchase-order'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <PurchaseOrderApprovalSection
+        v-else-if="selectedView === 'purchase-order-approval'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <DeliveryOrderSection
+        v-else-if="selectedView === 'delivery-order'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
       />
 
       <LabTreatmentMasterSection

@@ -360,6 +360,12 @@ async function save() {
     <!-- TAB: SEBAB KEMATIAN -->
     <div v-show="activeTab === 'cod'">
       <CauseOfDeathSection ref="causeOfDeathRef" :api-base-url="apiBaseUrl" @session-expired="emit('session-expired', $event)" />
+      <div class="card">
+        <div class="file-actions">
+          <button class="small-button primary" type="button" @click="save">💾 SIMPAN</button>
+          <button class="small-button" type="button" @click="clearForm">🆕 BARU</button>
+        </div>
+      </div>
     </div>
 
     <!-- ICD SEARCH DIALOG -->
