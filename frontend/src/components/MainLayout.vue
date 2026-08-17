@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import AdmissionRegistrationSection from './AdmissionRegistrationSection.vue';
 import AntrianApotikSection from './AntrianApotikSection.vue';
+import AntrianApotikDisplaySection from './AntrianApotikDisplaySection.vue';
 import ApotikSection from './ApotikSection.vue';
 import BankSection from './BankSection.vue';
 import BatchItemSection from './BatchItemSection.vue';
@@ -74,6 +75,7 @@ const expandedModules = ref({});
 const screenViewMap = {
   'SC0011': 'apotik',
   'SCM0054': 'antrian-apotik',
+  'RPT0020': 'antrian-apotik-display',
   'SC0091': 'polyclinic',
   'SC0041': 'laboratory-transaction',
   'SC0043': 'laboratory-result',
@@ -151,6 +153,7 @@ function screenIcon(screenCode) {
   const icons = {
     'SC0011': '💊',
     'SCM0054': '💊',
+    'RPT0020': '📺',
     'SC0091': '🩺',
     'SC0041': '🧪',
     'SC0043': '📊',
@@ -333,6 +336,12 @@ const apotikUnits = computed(() => {
 
       <AntrianApotikSection
         v-else-if="selectedView === 'antrian-apotik'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <AntrianApotikDisplaySection
+        v-else-if="selectedView === 'antrian-apotik-display'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
       />
