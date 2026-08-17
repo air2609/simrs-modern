@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import AdmissionRegistrationSection from './AdmissionRegistrationSection.vue';
+import AntrianApotikSection from './AntrianApotikSection.vue';
 import ApotikSection from './ApotikSection.vue';
 import BankSection from './BankSection.vue';
 import BatchItemSection from './BatchItemSection.vue';
@@ -14,6 +15,7 @@ import CoaSection from './CoaSection.vue';
 import DivisionSection from './DivisionSection.vue';
 import DoctorSection from './DoctorSection.vue';
 
+import ExpiredItemSection from './ExpiredItemSection.vue';
 
 import GimSection from './GimSection.vue';
 
@@ -71,10 +73,12 @@ const expandedModules = ref({});
 // Map screen codes to Vue component view names
 const screenViewMap = {
   'SC0011': 'apotik',
+  'SCM0054': 'antrian-apotik',
   'SC0091': 'polyclinic',
   'SC0041': 'laboratory-transaction',
   'SC0043': 'laboratory-result',
   'SC0201': 'journal',
+  'SC0190': 'expired-item',
   'SCM0051': 'lab-treatment-master',
   'SCM0013': 'location-master',
   'SCM0014': 'location-master',
@@ -146,10 +150,12 @@ function navigate(view) {
 function screenIcon(screenCode) {
   const icons = {
     'SC0011': '💊',
+    'SCM0054': '💊',
     'SC0091': '🩺',
     'SC0041': '🧪',
     'SC0043': '📊',
     'SC0201': '📒',
+    'SC0190': '📦',
     'SCM0051': '🔬',
     'SCM0013': '📍',
     'SCM0014': '📍',
@@ -325,6 +331,12 @@ const apotikUnits = computed(() => {
         @session-expired="emit('session-expired', $event)"
       />
 
+      <AntrianApotikSection
+        v-else-if="selectedView === 'antrian-apotik'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
       <PolyclinicSection
         v-else-if="selectedView === 'polyclinic'"
         :api-base-url="apiBaseUrl"
@@ -333,6 +345,12 @@ const apotikUnits = computed(() => {
 
       <JournalSection
         v-else-if="selectedView === 'journal'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+      />
+
+      <ExpiredItemSection
+        v-else-if="selectedView === 'expired-item'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
       />

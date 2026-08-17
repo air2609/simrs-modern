@@ -45,6 +45,12 @@ public class ItemInventoryController {
         return ApiResponse.ok(itemInventoryService.getWarehouseOptions());
     }
 
+    @GetMapping("/expired-report")
+    public ApiResponse<List<ExpiredItemReportResponse>> expiredReport(HttpServletRequest request) {
+        ensureAuthenticated(request.getSession(false));
+        return ApiResponse.ok(itemInventoryService.getExpiredReport());
+    }
+
     @PostMapping("/save")
     public ApiResponse<Void> save(@RequestBody ItemInventorySaveRequest body, HttpServletRequest request) {
         String username = ensureAuthenticated(request.getSession(false));

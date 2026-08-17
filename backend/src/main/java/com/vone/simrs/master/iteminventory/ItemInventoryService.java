@@ -71,6 +71,35 @@ public class ItemInventoryService {
     }
 
     /**
+     * Laporan O-BM yang hampir kadaluwarsa (SC0190).
+     * Mengikuti {@code ItemInventoryDAO.getExpiredItem()} yang menggabungkan
+     * tb_item_inventory, tb_batch_item, ms_item, dan ms_warehouse, hanya
+     * menampilkan item dengan qty > 0 dan tanggal kadaluwarsa sudah lewat
+     * atau dalam 180 hari ke depan, diurutkan berdasarkan tanggal kadaluwarsa.
+     */
+    public List<ExpiredItemReportResponse> getExpiredReport() {
+        String sql = "select item.v_item_code, item.v_item_name, batch.v_batch_no, "
+                + "batch.d_batch_exp_date, wh.v_whouse_name, inv.n_item_inv_qty "
+                + "from tb_item_inventory inv "
+                + "join tb_batch_item batch on batch.n_batch_id = inv.n_batch_id "
+                + "join ms_item item on item.n_item_id = inv.n_item_id "
+                + "left join ms_warehouse wh on wh.n_whouse_id = inv.n_whouse_id "
+                + "where (date_part('day', batch.d_batch_exp_date - now()) <= 0 "
+                + "or date_part('day', batch.d_batch_exp_date - now()) between 0 and 180) "
+                + "and inv.n_item_inv_qty > 0 "
+                + "order by batch.d_batch_exp_date asc";
+
+        return jdbcTemplate.query(sql, (resultSet, rowNum) -> new ExpiredItemReportResponse(
+                resultSet.getString("v_item_code"),
+                resultSet.getString("v_item_name"),
+                resultSet.getString("v_batch_no"),
+                resultSet.getDate("d_batch_exp_date") == null ? null
+                        : resultSet.getDate("d_batch_exp_date").toLocalDate().toString(),
+                resultSet.getString("v_whouse_name"),
+                toBigDecimal(resultSet.getObject("n_item_inv_qty"))));
+    }
+
+    /**
      * Simpan alokasi item baru. Mengikuti {@code ItemInventoryDAO.save()}
      * 
      * yang membuat TbBatchItem baru (batch no, exp date, qty 5000, cogs price)
