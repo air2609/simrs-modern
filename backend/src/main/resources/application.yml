@@ -51,6 +51,7 @@ management:
 app:
   cors:
     allowed-origins: ${SIMRS_ALLOWED_ORIGINS:http://localhost:5173}
+  rekap-gl-dir: ${REKAP_GL_DIR:./rekap-gl}
   auth:
     session-timeout-seconds: ${SIMRS_SESSION_TIMEOUT_SECONDS:3000}
   admission:

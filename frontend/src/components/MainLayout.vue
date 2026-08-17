@@ -1,6 +1,8 @@
 <script setup>
 import { computed, ref } from 'vue';
 import AdmissionRegistrationSection from './AdmissionRegistrationSection.vue';
+import AccountPayableSection from './AccountPayableSection.vue';
+import AcctDefaultSection from './AcctDefaultSection.vue';
 import AntrianApotikSection from './AntrianApotikSection.vue';
 import AntrianApotikDisplaySection from './AntrianApotikDisplaySection.vue';
 import ApotikSection from './ApotikSection.vue';
@@ -19,6 +21,7 @@ import DoctorSection from './DoctorSection.vue';
 import ExpiredItemSection from './ExpiredItemSection.vue';
 
 import GimSection from './GimSection.vue';
+import GeneralLedgerSection from './GeneralLedgerSection.vue';
 
 import GroupMasterSection from './GroupMasterSection.vue';
 import Icd9cmSection from './Icd9cmSection.vue';
@@ -32,6 +35,7 @@ import ItemSellingPriceSection from './ItemSellingPriceSection.vue';
 
 
 import JournalSection from './JournalSection.vue';
+import JournalEntrySection from './JournalEntrySection.vue';
 import LocationMasterSection from './LocationMasterSection.vue';
 import LabTreatmentMasterSection from './LabTreatmentMasterSection.vue';
 import LaboratoryTransactionSection from './LaboratoryTransactionSection.vue';
@@ -49,9 +53,11 @@ import PurchaseOrderApprovalSection from './PurchaseOrderApprovalSection.vue';
 import PurchaseOrderSection from './PurchaseOrderSection.vue';
 import PurchaseRequestApprovalSection from './PurchaseRequestApprovalSection.vue';
 import PurchaseRequestSection from './PurchaseRequestSection.vue';
+import RekapGlSection from './RekapGlSection.vue';
 import RoomSection from './RoomSection.vue';
 import ScreenMasterSection from './ScreenMasterSection.vue';
 import StaffSection from './StaffSection.vue';
+import TrialBalanceSection from './TrialBalanceSection.vue';
 import TreatmentClassSection from './TreatmentClassSection.vue';
 import TreatmentGroupSection from './TreatmentGroupSection.vue';
 import TreatmentSection from './TreatmentSection.vue';
@@ -97,12 +103,17 @@ const screenViewMap = {
   'SC0083': 'mr-diagnosa',
   'SC0206': 'mr-diagnose',
   'SC0201': 'journal',
+  'SC0198': 'general-ledger',
+  'SC0207': 'trial-balance',
   'SC0190': 'expired-item',
+  'SC0199': 'journal-entry',
   'SC0191': 'purchase-request',
   'SC0192': 'purchase-request-approval',
   'SC0193': 'purchase-order',
   'SC0194': 'purchase-order-approval',
   'SC0195': 'delivery-order',
+  'SC0176': 'rekap-gl',
+  'SC0196': 'account-payable',
   'SCM0051': 'lab-treatment-master',
   'SCM0013': 'location-master',
   'SCM0014': 'location-master',
@@ -140,6 +151,7 @@ const screenViewMap = {
   'SCM0041': 'item-selling-price',
   'SCM0046': 'coa',
   'SCM0047': 'gim',
+  'SCM0050': 'acct-default',
   'SCM0027': 'icd',
   'SCM0028': 'icd9cm'
 };
@@ -186,12 +198,17 @@ function screenIcon(screenCode) {
     'SC0083': '📝',
     'SC0206': '📝',
     'SC0201': '📒',
+    'SC0198': '📒',
+    'SC0207': '📊',
     'SC0190': '📦',
+    'SC0199': '📝',
     'SC0191': '🛒',
     'SC0192': '✅',
     'SC0193': '🛍️',
     'SC0194': '✅',
     'SC0195': '🚚',
+    'SC0176': '📋',
+    'SC0196': '💳',
     'SCM0051': '🔬',
     'SCM0013': '📍',
     'SCM0014': '📍',
@@ -229,6 +246,7 @@ function screenIcon(screenCode) {
     'SCM0041': '💰',
     'SCM0046': '📒',
     'SCM0047': '⚙️',
+    'SCM0050': '🧾',
     'SCM0027': '🩺',
     'SCM0028': '🩺'
   };
@@ -427,6 +445,27 @@ const apotikUnits = computed(() => {
         @session-expired="emit('session-expired', $event)"
       />
 
+      <GeneralLedgerSection
+        v-else-if="selectedView === 'general-ledger'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <JournalEntrySection
+        v-else-if="selectedView === 'journal-entry'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <TrialBalanceSection
+        v-else-if="selectedView === 'trial-balance'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
       <ExpiredItemSection
         v-else-if="selectedView === 'expired-item'"
         :api-base-url="apiBaseUrl"
@@ -461,6 +500,20 @@ const apotikUnits = computed(() => {
 
       <DeliveryOrderSection
         v-else-if="selectedView === 'delivery-order'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <RekapGlSection
+        v-else-if="selectedView === 'rekap-gl'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <AccountPayableSection
+        v-else-if="selectedView === 'account-payable'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
         @close="navigate('overview')"
@@ -641,6 +694,13 @@ const apotikUnits = computed(() => {
         v-else-if="selectedView === 'coa'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
+      />
+
+      <AcctDefaultSection
+        v-else-if="selectedView === 'acct-default'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
       />
 
       <GimSection
