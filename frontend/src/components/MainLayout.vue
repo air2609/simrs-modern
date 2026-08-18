@@ -69,6 +69,10 @@ import PendaftaranSection from './PendaftaranSection.vue';
 import DelayAntrianSection from './DelayAntrianSection.vue';
 import AntrianDokterSection from './AntrianDokterSection.vue';
 import KasirSection from './KasirSection.vue';
+import RekapObatSection from './RekapObatSection.vue';
+import InfoTagihanSection from './InfoTagihanSection.vue';
+import LaporanPendaftaranSection from './LaporanPendaftaranSection.vue';
+import RekapKasirSection from './RekapKasirSection.vue';
 import RoomSection from './RoomSection.vue';
 import ScreenMasterSection from './ScreenMasterSection.vue';
 import StaffSection from './StaffSection.vue';
@@ -135,6 +139,10 @@ const screenViewMap = {
   'SCM0053': 'delay-antrian',
   'RPT0019': 'antrian-dokter',
   'SC0021': 'kasir',
+  'SC0208': 'rekap-obat',
+  'SC0023': 'info-tagihan',
+  'RPT0010': 'laporan-pendaftaran',
+  'RPT0022': 'rekap-kasir',
   'SC0190': 'expired-item',
   'SC0199': 'journal-entry',
   'SC0191': 'purchase-request',
@@ -245,6 +253,10 @@ function screenIcon(screenCode) {
     'SCM0053': '📢',
     'RPT0019': '📺',
     'SC0021': '💵',
+    'SC0208': '💊',
+    'SC0023': '🧾',
+    'RPT0010': '📊',
+    'RPT0022': '💵',
     'SC0190': '📦',
     'SC0199': '📝',
     'SC0191': '🛒',
@@ -440,6 +452,34 @@ const apotikUnits = computed(() => {
 
       <KasirSection
         v-else-if="selectedView === 'kasir'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <RekapObatSection
+        v-else-if="selectedView === 'rekap-obat'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <InfoTagihanSection
+        v-else-if="selectedView === 'info-tagihan'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <LaporanPendaftaranSection
+        v-else-if="selectedView === 'laporan-pendaftaran'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <RekapKasirSection
+        v-else-if="selectedView === 'rekap-kasir'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
         @close="navigate('overview')"

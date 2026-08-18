@@ -121,14 +121,14 @@ public class CashierService {
         String bed = ranap ? findBedByRegId(reg.regId) : "";
         Double deposit = findDepositBalance(reg.regId);
         return new CashierPatientDetailResponse(
-                patient.mrCode, reg.regId, reg.regNo, patient.patientName,
+                patient.patientId, patient.mrCode, reg.regId, reg.regNo, patient.patientName,
                 patient.address, patient.patientTypeName, bed, ranap, deposit);
     }
 
     private PatientRow findPatientByMrCode(String mrCode) {
         try {
             return jdbcTemplate.queryForObject(
-                    "select mr.n_mr_id, mr.v_mr_code, pat.v_patient_name, "
+                    "select mr.n_mr_id, mr.v_mr_code, mr.n_patient_id, pat.v_patient_name, "
                             + "pat.v_patient_main_addr, pt.v_tpatient_desc "
                             + "from tb_medical_record mr "
                             + "join ms_patient pat on pat.n_patient_id = mr.n_patient_id "
@@ -137,6 +137,7 @@ public class CashierService {
                     (resultSet, rowNum) -> new PatientRow(
                             resultSet.getInt("n_mr_id"),
                             resultSet.getString("v_mr_code"),
+                            resultSet.getInt("n_patient_id"),
                             resultSet.getString("v_patient_name"),
                             resultSet.getString("v_patient_main_addr"),
                             resultSet.getString("v_tpatient_desc")),
@@ -557,14 +558,16 @@ public class CashierService {
     private static final class PatientRow {
         private final int mrId;
         private final String mrCode;
+        private final int patientId;
         private final String patientName;
         private final String address;
         private final String patientTypeName;
 
-        private PatientRow(int mrId, String mrCode, String patientName, String address,
-                String patientTypeName) {
+        private PatientRow(int mrId, String mrCode, int patientId, String patientName,
+                String address, String patientTypeName) {
             this.mrId = mrId;
             this.mrCode = mrCode;
+            this.patientId = patientId;
             this.patientName = patientName;
             this.address = address;
             this.patientTypeName = patientTypeName;

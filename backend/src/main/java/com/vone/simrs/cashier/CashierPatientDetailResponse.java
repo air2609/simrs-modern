@@ -5,6 +5,7 @@ package com.vone.simrs.cashier;
  */
 public class CashierPatientDetailResponse {
 
+    private final Integer patientId;
     private final String mrCode;
     private final Integer registrationId;
     private final String registrationNumber;
@@ -15,9 +16,10 @@ public class CashierPatientDetailResponse {
     private final boolean ranap;
     private final Double depositBalance;
 
-    public CashierPatientDetailResponse(String mrCode, Integer registrationId,
+    public CashierPatientDetailResponse(Integer patientId, String mrCode, Integer registrationId,
             String registrationNumber, String patientName, String address, String patientTypeName,
             String bed, boolean ranap, Double depositBalance) {
+        this.patientId = patientId;
         this.mrCode = mrCode;
         this.registrationId = registrationId;
         this.registrationNumber = registrationNumber;
@@ -27,6 +29,10 @@ public class CashierPatientDetailResponse {
         this.bed = bed;
         this.ranap = ranap;
         this.depositBalance = depositBalance;
+    }
+
+    public Integer getPatientId() {
+        return patientId;
     }
 
     public String getMrCode() {
