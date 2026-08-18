@@ -54,6 +54,8 @@ import PurchaseOrderSection from './PurchaseOrderSection.vue';
 import PurchaseRequestApprovalSection from './PurchaseRequestApprovalSection.vue';
 import PurchaseRequestSection from './PurchaseRequestSection.vue';
 import RekapGlSection from './RekapGlSection.vue';
+import NeracaSection from './NeracaSection.vue';
+import LabarugiSection from './LabarugiSection.vue';
 import RoomSection from './RoomSection.vue';
 import ScreenMasterSection from './ScreenMasterSection.vue';
 import StaffSection from './StaffSection.vue';
@@ -105,6 +107,8 @@ const screenViewMap = {
   'SC0201': 'journal',
   'SC0198': 'general-ledger',
   'SC0207': 'trial-balance',
+  'SC0202': 'neraca',
+  'SC0203': 'laba-rugi',
   'SC0190': 'expired-item',
   'SC0199': 'journal-entry',
   'SC0191': 'purchase-request',
@@ -200,6 +204,8 @@ function screenIcon(screenCode) {
     'SC0201': '📒',
     'SC0198': '📒',
     'SC0207': '📊',
+    'SC0202': '📊',
+    'SC0203': '📈',
     'SC0190': '📦',
     'SC0199': '📝',
     'SC0191': '🛒',
@@ -507,6 +513,20 @@ const apotikUnits = computed(() => {
 
       <RekapGlSection
         v-else-if="selectedView === 'rekap-gl'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <NeracaSection
+        v-else-if="selectedView === 'neraca'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <LabarugiSection
+        v-else-if="selectedView === 'laba-rugi'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
         @close="navigate('overview')"
