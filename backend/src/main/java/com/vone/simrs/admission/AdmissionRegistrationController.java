@@ -97,6 +97,14 @@ public class AdmissionRegistrationController {
         return ApiResponse.ok(admissionRegistrationService.saveRegistration(requestBody, username));
     }
 
+    @PostMapping("/cancel")
+    public ApiResponse<String> cancel(@RequestBody AdmissionRegistrationCancelRequest requestBody,
+            HttpServletRequest request) {
+        ensureAuthenticated(request.getSession(false));
+        return ApiResponse.ok(admissionRegistrationService.cancelRegistration(
+                requestBody.getRegistrationCode()));
+    }
+
     private String ensureAuthenticated(HttpSession session) {
         return admissionRegistrationService.requireUsername(session);
     }

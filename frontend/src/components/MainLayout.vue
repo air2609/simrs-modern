@@ -65,6 +65,7 @@ import ItemMutationSection from './ItemMutationSection.vue';
 import UpdateInventorySection from './UpdateInventorySection.vue';
 import PhysiotherapySection from './PhysiotherapySection.vue';
 import RadiologySection from './RadiologySection.vue';
+import PendaftaranSection from './PendaftaranSection.vue';
 import RoomSection from './RoomSection.vue';
 import ScreenMasterSection from './ScreenMasterSection.vue';
 import StaffSection from './StaffSection.vue';
@@ -127,6 +128,7 @@ const screenViewMap = {
   'SCM0057': 'update-inventory',
   'SC0141': 'physiotherapy',
   'SC0051': 'radiology',
+  'SC0001': 'pendaftaran',
   'SC0190': 'expired-item',
   'SC0199': 'journal-entry',
   'SC0191': 'purchase-request',
@@ -187,7 +189,7 @@ const screenViewMap = {
 // Extra menu items not mapped from user modules
 const extraMenus = [
   { view: 'overview', label: '🏠 Overview' },
-  { view: 'admission-registration', label: '📋 Pendaftaran Rawat Jalan' }
+  { view: 'pendaftaran', label: '📋 Pendaftaran Pasien' }
 ];
 
 // Module expansion toggle (accordion style)
@@ -233,6 +235,7 @@ function screenIcon(screenCode) {
     'SCM0057': '📦',
     'SC0141': '💪',
     'SC0051': '🔬',
+    'SC0001': '📋',
     'SC0190': '📦',
     'SC0199': '📝',
     'SC0191': '🛒',
@@ -329,8 +332,8 @@ const apotikUnits = computed(() => {
         </div>
 
         <div class="accordion-group">
-          <div class="accordion-header static" @click="navigate('admission-registration')">
-            <span>📋 Pendaftaran Rawat Jalan</span>
+          <div class="accordion-header static" @click="navigate('pendaftaran')">
+            <span>📋 Pendaftaran Pasien</span>
           </div>
         </div>
 
@@ -405,10 +408,11 @@ const apotikUnits = computed(() => {
         </section>
       </template>
 
-      <AdmissionRegistrationSection
-        v-else-if="selectedView === 'admission-registration'"
+      <PendaftaranSection
+        v-else-if="selectedView === 'pendaftaran'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
       />
 
       <ApotikSection

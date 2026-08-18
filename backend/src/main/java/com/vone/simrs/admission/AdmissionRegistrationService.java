@@ -761,4 +761,53 @@ public class AdmissionRegistrationService {
             this.registrationCharge = registrationCharge;
         }
     }
+
+    /**
+     * Batalkan registrasi rawat jalan (SC0001 tab 1). Migrasi dari legacy
+     * {@code RajalManagerImpl.cancelRegistration()} +
+     * {@code TbRegistrationDAO.deleteRegistration()}: hanya boleh jika nota
+     * registrasi masih satu; hapus journal + misc trx + nota + registrasi.
+     */
+    @Transactional
+    public String cancelRegistration(String registrationCode) {
+        if (!hasText(registrationCode)) {
+            throw new IllegalArgumentException("NO. REGISTRASI HARUS DI ISI!");
+        }
+        List<Integer> regIds = jdbcTemplate.query(
+                "select n_reg_id from tb_registration where v_reg_secondary_id = ?",
+                (resultSet, rowNum) -> resultSet.getInt("n_reg_id"),
+                registrationCode.trim());
+        if (regIds.isEmpty()) {
+            throw new IllegalArgumentException("Registrasi tidak ditemukan!");
+        }
+        Integer regId = regIds.get(0);
+        List<NoteRow> notes = jdbcTemplate.query(
+                "select n_exam_id, v_note_no from tb_examination where n_reg_id = ?",
+                (resultSet, rowNum) -> new NoteRow(
+                        resultSet.getInt("n_exam_id"),
+                        resultSet.getString("v_note_no")),
+                regId);
+        if (notes.size() > 1) {
+            throw new IllegalArgumentException("registration.cannot.be.cancelled");
+        }
+        if (notes.isEmpty()) {
+            throw new IllegalArgumentException("Nota registrasi tidak ditemukan!");
+        }
+        NoteRow note = notes.get(0);
+        jdbcTemplate.update("delete from tb_journal_trx where v_voucher_no = ?", note.noteNo);
+        jdbcTemplate.update("delete from tb_misc_trx where n_note_id = ?", note.noteId);
+        jdbcTemplate.update("delete from tb_examination where n_exam_id = ?", note.noteId);
+        jdbcTemplate.update("delete from tb_registration where n_reg_id = ?", regId);
+        return "Registrasi berhasil dibatalkan.";
+    }
+
+    private static class NoteRow {
+        private final int noteId;
+        private final String noteNo;
+
+        private NoteRow(int noteId, String noteNo) {
+            this.noteId = noteId;
+            this.noteNo = noteNo;
+        }
+    }
 }
