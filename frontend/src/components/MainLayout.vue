@@ -68,6 +68,7 @@ import RadiologySection from './RadiologySection.vue';
 import PendaftaranSection from './PendaftaranSection.vue';
 import DelayAntrianSection from './DelayAntrianSection.vue';
 import AntrianDokterSection from './AntrianDokterSection.vue';
+import KasirSection from './KasirSection.vue';
 import RoomSection from './RoomSection.vue';
 import ScreenMasterSection from './ScreenMasterSection.vue';
 import StaffSection from './StaffSection.vue';
@@ -133,6 +134,7 @@ const screenViewMap = {
   'SC0001': 'pendaftaran',
   'SCM0053': 'delay-antrian',
   'RPT0019': 'antrian-dokter',
+  'SC0021': 'kasir',
   'SC0190': 'expired-item',
   'SC0199': 'journal-entry',
   'SC0191': 'purchase-request',
@@ -242,6 +244,7 @@ function screenIcon(screenCode) {
     'SC0001': '📋',
     'SCM0053': '📢',
     'RPT0019': '📺',
+    'SC0021': '💵',
     'SC0190': '📦',
     'SC0199': '📝',
     'SC0191': '🛒',
@@ -430,6 +433,13 @@ const apotikUnits = computed(() => {
 
       <AntrianDokterSection
         v-else-if="selectedView === 'antrian-dokter'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <KasirSection
+        v-else-if="selectedView === 'kasir'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
         @close="navigate('overview')"
