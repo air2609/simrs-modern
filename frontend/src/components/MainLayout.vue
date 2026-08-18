@@ -59,6 +59,8 @@ import LabarugiSection from './LabarugiSection.vue';
 import EmergencySection from './EmergencySection.vue';
 import ItemRequestSection from './ItemRequestSection.vue';
 import CariPasienSection from './CariPasienSection.vue';
+import WardSection from './WardSection.vue';
+import BedTransactionSection from './BedTransactionSection.vue';
 import RoomSection from './RoomSection.vue';
 import ScreenMasterSection from './ScreenMasterSection.vue';
 import StaffSection from './StaffSection.vue';
@@ -115,6 +117,8 @@ const screenViewMap = {
   'SC0061': 'emergency',
   'SC0174': 'item-request',
   'SC0005': 'cari-pasien',
+  'SC0031': 'ward',
+  'SC0004': 'bed-transaction',
   'SC0190': 'expired-item',
   'SC0199': 'journal-entry',
   'SC0191': 'purchase-request',
@@ -215,6 +219,8 @@ function screenIcon(screenCode) {
     'SC0061': '🚑',
     'SC0174': '📦',
     'SC0005': '🏥',
+    'SC0031': '🛏️',
+    'SC0004': '🛌',
     'SC0190': '📦',
     'SC0199': '📝',
     'SC0191': '🛒',
@@ -557,6 +563,20 @@ const apotikUnits = computed(() => {
 
       <CariPasienSection
         v-else-if="selectedView === 'cari-pasien'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <WardSection
+        v-else-if="selectedView === 'ward'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <BedTransactionSection
+        v-else-if="selectedView === 'bed-transaction'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
         @close="navigate('overview')"
