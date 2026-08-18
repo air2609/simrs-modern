@@ -58,6 +58,7 @@ import NeracaSection from './NeracaSection.vue';
 import LabarugiSection from './LabarugiSection.vue';
 import EmergencySection from './EmergencySection.vue';
 import ItemRequestSection from './ItemRequestSection.vue';
+import CariPasienSection from './CariPasienSection.vue';
 import RoomSection from './RoomSection.vue';
 import ScreenMasterSection from './ScreenMasterSection.vue';
 import StaffSection from './StaffSection.vue';
@@ -113,6 +114,7 @@ const screenViewMap = {
   'SC0203': 'laba-rugi',
   'SC0061': 'emergency',
   'SC0174': 'item-request',
+  'SC0005': 'cari-pasien',
   'SC0190': 'expired-item',
   'SC0199': 'journal-entry',
   'SC0191': 'purchase-request',
@@ -212,6 +214,7 @@ function screenIcon(screenCode) {
     'SC0203': '📈',
     'SC0061': '🚑',
     'SC0174': '📦',
+    'SC0005': '🏥',
     'SC0190': '📦',
     'SC0199': '📝',
     'SC0191': '🛒',
@@ -547,6 +550,13 @@ const apotikUnits = computed(() => {
 
       <ItemRequestSection
         v-else-if="selectedView === 'item-request'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <CariPasienSection
+        v-else-if="selectedView === 'cari-pasien'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
         @close="navigate('overview')"
