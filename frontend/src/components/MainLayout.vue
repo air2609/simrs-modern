@@ -73,6 +73,18 @@ import RekapObatSection from './RekapObatSection.vue';
 import InfoTagihanSection from './InfoTagihanSection.vue';
 import LaporanPendaftaranSection from './LaporanPendaftaranSection.vue';
 import RekapKasirSection from './RekapKasirSection.vue';
+import RekapTindakanSection from './RekapTindakanSection.vue';
+import BorReportSection from './BorReportSection.vue';
+import LaporanPenjualanSection from './LaporanPenjualanSection.vue';
+import LaporanPasienPoliUgdSection from './LaporanPasienPoliUgdSection.vue';
+import LaporanPersediaanObatSection from './LaporanPersediaanObatSection.vue';
+import LaporanPenerimaanKasirSection from './LaporanPenerimaanKasirSection.vue';
+import LaporanPendapatanDokterSection from './LaporanPendapatanDokterSection.vue';
+import LaporanRawatInapJalanSection from './LaporanRawatInapJalanSection.vue';
+import LaporanRekapObatSection from './LaporanRekapObatSection.vue';
+import LaporanPasienBangsalSection from './LaporanPasienBangsalSection.vue';
+import LaporanHarianBangsalSection from './LaporanHarianBangsalSection.vue';
+import BufferMonitoringSection from './BufferMonitoringSection.vue';
 import RoomSection from './RoomSection.vue';
 import ScreenMasterSection from './ScreenMasterSection.vue';
 import StaffSection from './StaffSection.vue';
@@ -142,6 +154,17 @@ const screenViewMap = {
   'SC0208': 'rekap-obat',
   'SC0023': 'info-tagihan',
   'RPT0010': 'laporan-pendaftaran',
+  'RPT0001': 'laporan-penjualan',
+  'RPT0005': 'laporan-pasien-bangsal',
+  'RPT0006': 'laporan-harian-bangsal',
+  'RPT0004': 'laporan-poli-ugd',
+  'RPT0008': 'laporan-persediaan-obat',
+  'RPT0012': 'laporan-penerimaan-kasir',
+  'RPT0013': 'laporan-pendapatan-dokter',
+  'RPT0015': 'laporan-rawat-inap-jalan',
+  'RPT0016': 'laporan-rekap-obat',
+  'RPT0018': 'buffer-monitoring',
+  'RPT0011': 'rekap-tindakan',
   'RPT0022': 'rekap-kasir',
   'SC0190': 'expired-item',
   'SC0199': 'journal-entry',
@@ -162,6 +185,7 @@ const screenViewMap = {
   'SCM0002': 'group-master',
   'SCM0058': 'bed-display',
   'SC0072': 'bed-info',
+  'SC0073': 'bor-report',
   'SCM0059': 'poly-doctor',
   'SCM0021': 'treatment-class',
   'SCM0022': 'division',
@@ -256,6 +280,17 @@ function screenIcon(screenCode) {
     'SC0208': '💊',
     'SC0023': '🧾',
     'RPT0010': '📊',
+    'RPT0001': '💊',
+    'RPT0005': '🏥',
+    'RPT0006': '🏥',
+    'RPT0004': '📊',
+    'RPT0008': '💊',
+    'RPT0012': '💵',
+    'RPT0013': '🩺',
+    'RPT0015': '🏥',
+    'RPT0016': '💊',
+    'RPT0018': '📦',
+    'RPT0011': '📊',
     'RPT0022': '💵',
     'SC0190': '📦',
     'SC0199': '📝',
@@ -276,6 +311,7 @@ function screenIcon(screenCode) {
     'SCM0002': '👥',
     'SCM0058': '🛏️',
     'SC0072': '🛏️',
+    'SC0073': '📊',
     'SCM0059': '🩺',
     'SCM0021': '🏷️',
     'SCM0022': '🗂️',
@@ -480,6 +516,83 @@ const apotikUnits = computed(() => {
 
       <RekapKasirSection
         v-else-if="selectedView === 'rekap-kasir'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <RekapTindakanSection
+        v-else-if="selectedView === 'rekap-tindakan'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <LaporanPenjualanSection
+        v-else-if="selectedView === 'laporan-penjualan'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <LaporanPasienPoliUgdSection
+        v-else-if="selectedView === 'laporan-poli-ugd'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <LaporanPersediaanObatSection
+        v-else-if="selectedView === 'laporan-persediaan-obat'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <LaporanPenerimaanKasirSection
+        v-else-if="selectedView === 'laporan-penerimaan-kasir'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <LaporanPendapatanDokterSection
+        v-else-if="selectedView === 'laporan-pendapatan-dokter'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <LaporanRawatInapJalanSection
+        v-else-if="selectedView === 'laporan-rawat-inap-jalan'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <LaporanRekapObatSection
+        v-else-if="selectedView === 'laporan-rekap-obat'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <BufferMonitoringSection
+        v-else-if="selectedView === 'buffer-monitoring'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <LaporanPasienBangsalSection
+        v-else-if="selectedView === 'laporan-pasien-bangsal'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <LaporanHarianBangsalSection
+        v-else-if="selectedView === 'laporan-harian-bangsal'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
         @close="navigate('overview')"
@@ -749,6 +862,13 @@ const apotikUnits = computed(() => {
         v-else-if="selectedView === 'bed-info'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
+      />
+
+      <BorReportSection
+        v-else-if="selectedView === 'bor-report'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
       />
 
       <PolyDoctorSection
