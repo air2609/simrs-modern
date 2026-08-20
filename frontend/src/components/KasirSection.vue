@@ -381,7 +381,6 @@ function printKwitansi() {
   <div class="screen-page">
     <div class="page-header">
       <h2>💵 TRANSAKSI KASIR</h2>
-      <p class="page-subtitle">Migrasi screen legacy SC0021 — kasir.zul (Transaksi Pembayaran &amp; Cara Pembayaran)</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

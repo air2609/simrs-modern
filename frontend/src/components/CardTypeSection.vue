@@ -234,7 +234,6 @@ onMounted(initialize);
     <div class="page-header">
       <div>
         <h2>💳 Tipe Kartu Bank</h2>
-        <p class="page-subtitle">Migrasi form legacy SCM0048 — master tipe kartu bank</p>
       </div>
       <div class="header-actions">
         <button class="small-button" type="button" @click="initialize">🔄 Refresh</button>

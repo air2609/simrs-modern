@@ -125,7 +125,6 @@ onMounted(() => {
     <div class="page-header">
       <div>
         <h2>🛏️ Master Kamar Ranap</h2>
-        <p class="page-subtitle">Migrasi form legacy SCM0058 — mengatur bed yang ditampilkan dan status ketersediaannya</p>
       </div>
     </div>
 

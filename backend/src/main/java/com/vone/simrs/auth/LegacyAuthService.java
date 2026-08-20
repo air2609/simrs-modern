@@ -48,6 +48,35 @@ public class LegacyAuthService {
         return buildAuthenticatedUser(userRecord);
     }
 
+    /**
+     * Ganti password user yang sedang login. Migrasi legacy
+     * {@code DojoController.executeCP()} — verifikasi password lama,
+     * simpan MD5 password baru + v_whochange/d_whnchange.
+     */
+    public void changePassword(String username, String oldPassword, String newPassword) {
+        LegacyUserRecord userRecord = findActiveUser(normalizeUsername(username));
+        if (userRecord == null) {
+            throw new AuthenticationRequiredException(SESSION_EXPIRED_MESSAGE);
+        }
+        if (oldPassword == null || newPassword == null || newPassword.isEmpty()) {
+            throw new IllegalArgumentException("Password tidak boleh kosong");
+        }
+        if (newPassword.length() > 20) {
+            throw new IllegalArgumentException("Password maksimal 20 karakter");
+        }
+        if (!legacyPasswordEncoder.matches(oldPassword, userRecord.getPasswordHash())) {
+            throw new IllegalArgumentException("Password Lama Salah");
+        }
+
+        jdbcTemplate.update(
+                "update ms_user set v_password = ?, v_whochange = ?, d_whnchange = ? "
+                        + "where upper(v_user_name) = ?",
+                legacyPasswordEncoder.encode(newPassword),
+                userRecord.getUsername(),
+                new java.sql.Timestamp(System.currentTimeMillis()),
+                userRecord.getUsername().toUpperCase());
+    }
+
     public String sessionExpiredMessage() {
         return SESSION_EXPIRED_MESSAGE;
     }

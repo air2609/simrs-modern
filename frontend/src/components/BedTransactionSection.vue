@@ -234,7 +234,6 @@ function daySelectedCount() {
   <div class="screen-page">
     <div class="page-header">
       <h2>🛌 FORM TRANSAKSI BED</h2>
-      <p class="page-subtitle">Migrasi screen legacy SC0004 — bedTransaction.zul (History Bed Pasien &amp; Buat Nota Bed)</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

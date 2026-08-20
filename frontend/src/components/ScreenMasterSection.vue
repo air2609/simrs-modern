@@ -202,7 +202,6 @@ onMounted(() => {
     <div class="page-header">
       <div>
         <h2>🖥️ Screen Master</h2>
-        <p class="page-subtitle">Migrasi form legacy SCM0003 — memelihara data screen, subsystem, dan sub divisi (unit)</p>
       </div>
     </div>
 

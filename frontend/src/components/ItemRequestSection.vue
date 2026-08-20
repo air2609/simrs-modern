@@ -365,7 +365,6 @@ function statusLabel(status) {
   <div class="screen-page">
     <div class="page-header">
       <h2>📦 PERMINTAAN O-BM</h2>
-      <p class="page-subtitle">Migrasi screen legacy SC0174 — itemRequest.zul (Permintaan / Persetujuan / History O-BM)</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

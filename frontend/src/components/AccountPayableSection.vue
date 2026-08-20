@@ -217,7 +217,6 @@ onMounted(initialize);
   <div class="screen-page">
     <div class="page-header">
       <h2>💳 ACCOUNT PAYABLE</h2>
-      <p class="page-subtitle">Migrasi screen legacy SC0196 — apScreen.zul (Hutang Usaha)</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

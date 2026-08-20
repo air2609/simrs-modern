@@ -104,7 +104,6 @@ async function loadReport() {
   <div class="screen-page">
     <div class="page-header">
       <h2>📦 BUFFER MONITORING</h2>
-      <p class="page-subtitle">Migrasi screen legacy RPT0018 — buffer.zul</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

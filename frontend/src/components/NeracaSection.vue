@@ -123,7 +123,6 @@ onMounted(() => {
   <div class="screen-page">
     <div class="page-header">
       <h2>📊 NERACA</h2>
-      <p class="page-subtitle">Migrasi screen legacy SC0202 — neraca.zul (Balance Sheet)</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

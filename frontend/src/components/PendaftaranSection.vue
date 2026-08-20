@@ -16,7 +16,6 @@ const activeTab = ref('rajal');
   <div class="screen-page">
     <div class="page-header">
       <h2>📋 PENDAFTARAN PASIEN</h2>
-      <p class="page-subtitle">Migrasi screen legacy SC0001 — Pendaftaran.zul (Pendaftaran Rawat Jalan &amp; Rawat Inap)</p>
     </div>
 
     <div class="card">

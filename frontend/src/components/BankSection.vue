@@ -170,7 +170,6 @@ onMounted(initialize);
     <div class="page-header">
       <div>
         <h2>🏦 Bank</h2>
-        <p class="page-subtitle">Migrasi form legacy SCM0033 — master bank</p>
       </div>
       <div class="header-actions">
         <button class="small-button" type="button" @click="initialize">🔄 Refresh</button>

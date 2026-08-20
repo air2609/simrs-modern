@@ -184,7 +184,6 @@ function exportXls() {
   <div class="screen-page">
     <div class="page-header">
       <h2>💊 LAPORAN PERSEDIAAN OBAT-BAHAN MEDIS</h2>
-      <p class="page-subtitle">Migrasi screen legacy RPT0008 — laporanPersediaanOBM.zul</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

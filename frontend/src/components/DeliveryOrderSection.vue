@@ -594,7 +594,6 @@ onMounted(initialize);
   <div class="screen-page">
     <div class="page-header">
       <h2>🚚 BUKTI PENERIMAAN BARANG</h2>
-      <p class="page-subtitle">Migrasi screen legacy SC0195 — doHead.zul (Penerimaan Barang + Input Batch No.)</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

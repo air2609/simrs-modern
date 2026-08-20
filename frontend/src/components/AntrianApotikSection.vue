@@ -117,7 +117,6 @@ onMounted(initialize);
     <div class="page-header">
       <div>
         <h2>💊 Kontrol Antrian Apotik</h2>
-        <p class="page-subtitle">Migrasi screen legacy SCM0054 — kontrol antrian pasien apotik</p>
       </div>
       <div class="header-actions">
         <button class="small-button" type="button" @click="initialize">🔄 Refresh</button>

@@ -163,7 +163,6 @@ function doCancel() {
   <div class="screen-page">
     <div class="page-header">
       <h2>📦 FORM UPDATE ITEM</h2>
-      <p class="page-subtitle">Migrasi screen legacy SCM0057 — updateInventory.zul (Update Stok Item di Bawah Buffer)</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

@@ -190,7 +190,6 @@ onMounted(initialize);
     <div class="page-header">
       <div>
         <h2>📦 Alokasi Item</h2>
-        <p class="page-subtitle">Migrasi form legacy SCM0032 — form alokasi item</p>
       </div>
       <div class="header-actions">
         <button class="small-button" type="button" @click="initialize">🔄 Refresh</button>

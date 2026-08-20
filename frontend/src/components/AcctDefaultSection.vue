@@ -88,7 +88,6 @@ onMounted(initialize);
   <div class="screen-page">
     <div class="page-header">
       <h2>🧾 FORM ACCT DEFAULT</h2>
-      <p class="page-subtitle">Migrasi screen legacy SCM0050 — acctDefaultDataInput.zul (Akun Default COA)</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

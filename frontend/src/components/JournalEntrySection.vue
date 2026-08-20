@@ -175,7 +175,6 @@ onMounted(initialize);
   <div class="screen-page">
     <div class="page-header">
       <h2>📝 MANUAL JOURNAL ENTRY</h2>
-      <p class="page-subtitle">Migrasi screen legacy SC0199 — journalEntry.zul (Input Jurnal Manual)</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

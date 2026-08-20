@@ -542,7 +542,6 @@ function historySubtotal() {
   <div class="screen-page">
     <div class="page-header">
       <h2>💪 TRANSAKSI FISIOTERAPI</h2>
-      <p class="page-subtitle">Migrasi screen legacy SC0141 — physiotherapy.zul (FORM INPUT TRANSAKSI FISIOTERAPI)</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

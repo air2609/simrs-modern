@@ -189,7 +189,6 @@ onMounted(resetForm);
   <div class="screen-page">
     <div class="page-header">
       <h2>✅ FORM PERSETUJUAN ORDER PERMINTAAN PEMBELIAN</h2>
-      <p class="page-subtitle">Migrasi screen legacy SC0192 — prApproval.zul (Persetujuan OPP)</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

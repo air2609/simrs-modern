@@ -185,7 +185,6 @@ onMounted(initialize);
     <div class="page-header">
       <div>
         <h2>📋 Form Peminjaman Berkas Rekam Medis</h2>
-        <p class="page-subtitle">Migrasi screen legacy SC0175 — permintaan peminjaman berkas rekam medis</p>
       </div>
       <div class="header-actions">
         <button class="small-button" type="button" @click="initialize">🔄 Refresh</button>

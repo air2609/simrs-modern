@@ -269,7 +269,6 @@ onMounted(initialize);
     <div class="page-header">
       <div>
         <h2>🩺 Master Dokter</h2>
-        <p class="page-subtitle">Migrasi form legacy SCM0030 — master dokter</p>
       </div>
       <div class="header-actions">
         <button class="small-button" type="button" @click="initialize">🔄 Refresh</button>

@@ -85,6 +85,9 @@ import LaporanRekapObatSection from './LaporanRekapObatSection.vue';
 import LaporanPasienBangsalSection from './LaporanPasienBangsalSection.vue';
 import LaporanHarianBangsalSection from './LaporanHarianBangsalSection.vue';
 import BufferMonitoringSection from './BufferMonitoringSection.vue';
+import FormDataPasienSection from './FormDataPasienSection.vue';
+import AntrianPerDokterSection from './AntrianPerDokterSection.vue';
+import EarningReportSection from './EarningReportSection.vue';
 import RoomSection from './RoomSection.vue';
 import ScreenMasterSection from './ScreenMasterSection.vue';
 import StaffSection from './StaffSection.vue';
@@ -150,6 +153,7 @@ const screenViewMap = {
   'SC0001': 'pendaftaran',
   'SCM0053': 'delay-antrian',
   'RPT0019': 'antrian-dokter',
+  'RPT0021': 'antrian-per-dokter',
   'SC0021': 'kasir',
   'SC0208': 'rekap-obat',
   'SC0023': 'info-tagihan',
@@ -163,6 +167,7 @@ const screenViewMap = {
   'RPT0013': 'laporan-pendapatan-dokter',
   'RPT0015': 'laporan-rawat-inap-jalan',
   'RPT0016': 'laporan-rekap-obat',
+  'RPT0017': 'earning-report',
   'RPT0018': 'buffer-monitoring',
   'RPT0011': 'rekap-tindakan',
   'RPT0022': 'rekap-kasir',
@@ -182,6 +187,7 @@ const screenViewMap = {
   'SCM0016': 'location-master',
   'SCM0003': 'screen-master',
   'SCM0001': 'user-maintenance',
+  'SCM0011': 'form-data-pasien',
   'SCM0002': 'group-master',
   'SCM0058': 'bed-display',
   'SC0072': 'bed-info',
@@ -226,8 +232,7 @@ const screenViewMap = {
 
 // Extra menu items not mapped from user modules
 const extraMenus = [
-  { view: 'overview', label: '🏠 Overview' },
-  { view: 'pendaftaran', label: '📋 Pendaftaran Pasien' }
+  { view: 'overview', label: '🏠 Overview' }
 ];
 
 // Module expansion toggle (accordion style)
@@ -276,6 +281,7 @@ function screenIcon(screenCode) {
     'SC0001': '📋',
     'SCM0053': '📢',
     'RPT0019': '📺',
+    'RPT0021': '🩺',
     'SC0021': '💵',
     'SC0208': '💊',
     'SC0023': '🧾',
@@ -289,6 +295,7 @@ function screenIcon(screenCode) {
     'RPT0013': '🩺',
     'RPT0015': '🏥',
     'RPT0016': '💊',
+    'RPT0017': '🩺',
     'RPT0018': '📦',
     'RPT0011': '📊',
     'RPT0022': '💵',
@@ -308,6 +315,7 @@ function screenIcon(screenCode) {
     'SCM0016': '📍',
     'SCM0003': '🖥️',
     'SCM0001': '👤',
+    'SCM0011': '🧑‍⚕️',
     'SCM0002': '👥',
     'SCM0058': '🛏️',
     'SC0072': '🛏️',
@@ -369,6 +377,65 @@ const apotikUnits = computed(() => {
   });
   return units;
 });
+
+// ==================== CHANGE PASSWORD ====================
+const cpVisible = ref(false);
+const cpOld = ref('');
+const cpNew = ref('');
+const cpRetype = ref('');
+const cpLoading = ref(false);
+const cpMessage = ref('');
+const cpError = ref('');
+
+function openChangePassword() {
+  cpOld.value = '';
+  cpNew.value = '';
+  cpRetype.value = '';
+  cpMessage.value = '';
+  cpError.value = '';
+  cpVisible.value = true;
+}
+
+async function confirmChangePassword() {
+  cpMessage.value = '';
+  cpError.value = '';
+  // validasi sesuai legacy: new vs retype
+  if (cpNew.value !== cpRetype.value) {
+    cpError.value = 'New Password dan Re-type Password Tidak Sama';
+    return;
+  }
+  if (!cpOld.value || !cpNew.value) {
+    cpError.value = 'Password tidak boleh kosong';
+    return;
+  }
+  cpLoading.value = true;
+  try {
+    const response = await fetch(`${props.apiBaseUrl}/auth/change-password`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ oldPassword: cpOld.value, newPassword: cpNew.value })
+    });
+    const payload = await response.json().catch(() => null);
+    if (response.status === 401) {
+      emit('session-expired', payload?.message || 'Your session has been expired. You need to login again.');
+      return;
+    }
+    if (!response.ok) {
+      cpError.value = payload?.message || `HTTP ${response.status}`;
+      return;
+    }
+    cpMessage.value = 'Password Telah Berubah';
+    cpOld.value = '';
+    cpNew.value = '';
+    cpRetype.value = '';
+    setTimeout(() => { cpVisible.value = false; }, 1500);
+  } catch (err) {
+    cpError.value = err.message || 'Terjadi kesalahan';
+  } finally {
+    cpLoading.value = false;
+  }
+}
 </script>
 
 <template>
@@ -385,12 +452,6 @@ const apotikUnits = computed(() => {
         <div class="accordion-group">
           <div class="accordion-header static" @click="navigate('overview')">
             <span>🏠 Overview</span>
-          </div>
-        </div>
-
-        <div class="accordion-group">
-          <div class="accordion-header static" @click="navigate('pendaftaran')">
-            <span>📋 Pendaftaran Pasien</span>
           </div>
         </div>
 
@@ -415,6 +476,9 @@ const apotikUnits = computed(() => {
 
       <!-- Logout -->
       <div class="sidebar-footer">
+        <button class="logout-button" type="button" @click="openChangePassword">
+          🔑 Ganti Password
+        </button>
         <button class="logout-button" type="button" @click="emit('logout')">
           🚪 Logout
         </button>
@@ -481,6 +545,13 @@ const apotikUnits = computed(() => {
 
       <AntrianDokterSection
         v-else-if="selectedView === 'antrian-dokter'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <AntrianPerDokterSection
+        v-else-if="selectedView === 'antrian-per-dokter'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
         @close="navigate('overview')"
@@ -572,6 +643,13 @@ const apotikUnits = computed(() => {
 
       <LaporanRekapObatSection
         v-else-if="selectedView === 'laporan-rekap-obat'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <EarningReportSection
+        v-else-if="selectedView === 'earning-report'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
         @close="navigate('overview')"
@@ -846,6 +924,13 @@ const apotikUnits = computed(() => {
         @session-expired="emit('session-expired', $event)"
       />
 
+      <FormDataPasienSection
+        v-else-if="selectedView === 'form-data-pasien'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
       <GroupMasterSection
         v-else-if="selectedView === 'group-master'"
         :api-base-url="apiBaseUrl"
@@ -1043,6 +1128,41 @@ const apotikUnits = computed(() => {
       />
 
     </main>
+
+    <!-- ==================== MODAL GANTI PASSWORD ==================== -->
+    <transition name="cp-fade">
+      <div v-if="cpVisible" class="cp-overlay" @click.self="cpVisible = false">
+        <div class="cp-box">
+          <div class="cp-title">🔑 CHANGE PASSWORD</div>
+          <div class="cp-row">
+            <span class="cp-label">USER</span>
+            <span class="cp-colon">:</span>
+            <span class="cp-user">{{ activeUser.username }}</span>
+          </div>
+          <div class="cp-row">
+            <span class="cp-label">OLD PASSWORD</span>
+            <span class="cp-colon">:</span>
+            <input v-model="cpOld" type="password" maxlength="20" placeholder="Password lama" />
+          </div>
+          <div class="cp-row">
+            <span class="cp-label">NEW PASSWORD</span>
+            <span class="cp-colon">:</span>
+            <input v-model="cpNew" type="password" maxlength="20" placeholder="Password baru" />
+          </div>
+          <div class="cp-row">
+            <span class="cp-label">RE-TYPE PASSWORD</span>
+            <span class="cp-colon">:</span>
+            <input v-model="cpRetype" type="password" maxlength="20" placeholder="Ulangi password baru" />
+          </div>
+          <p v-if="cpError" class="cp-msg cp-error">{{ cpError }}</p>
+          <p v-if="cpMessage" class="cp-msg cp-success">{{ cpMessage }}</p>
+          <div class="cp-buttons">
+            <button class="cp-btn cp-btn-primary" type="button" :disabled="cpLoading" @click="confirmChangePassword">CONFIRM CHANGE</button>
+            <button class="cp-btn" type="button" @click="cpVisible = false">TUTUP</button>
+          </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -1168,6 +1288,9 @@ const apotikUnits = computed(() => {
 .sidebar-footer {
   padding: 12px 16px;
   border-top: 1px solid rgba(255,255,255,0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .logout-button {
@@ -1185,6 +1308,106 @@ const apotikUnits = computed(() => {
 
 .logout-button:hover {
   background: rgba(255,255,255,0.18);
+}
+
+/* ==================== MODAL GANTI PASSWORD ==================== */
+.cp-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.cp-box {
+  background: #fff;
+  border-radius: 16px;
+  width: 460px;
+  max-width: 94vw;
+  padding: 26px 28px;
+  box-shadow: 0 24px 50px rgba(15, 23, 42, 0.35);
+  border-top: 5px solid #304b73;
+}
+.cp-title {
+  font-size: 17px;
+  font-weight: 800;
+  color: #304b73;
+  margin-bottom: 14px;
+  text-align: center;
+}
+.cp-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.cp-label {
+  font-weight: 700;
+  color: #304b73;
+  font-size: 12px;
+  width: 140px;
+  text-align: right;
+}
+.cp-colon {
+  color: #6b7280;
+  font-weight: 700;
+}
+.cp-user {
+  font-weight: 800;
+  color: #304b73;
+  font-size: 13px;
+}
+.cp-row input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid #d1d9e6;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.cp-msg {
+  margin: 10px 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+.cp-error {
+  color: #d64567;
+}
+.cp-success {
+  color: #1f9d5c;
+}
+.cp-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+.cp-btn {
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13px;
+  color: #304b73;
+}
+.cp-btn-primary {
+  background: #304b73;
+  color: #fff;
+  border-color: #304b73;
+}
+.cp-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.cp-fade-enter-active, .cp-fade-leave-active {
+  transition: all 0.25s ease;
+}
+.cp-fade-enter-from, .cp-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.92);
 }
 
 .content {

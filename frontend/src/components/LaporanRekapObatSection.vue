@@ -165,7 +165,6 @@ function fmtDisplayDate(iso) {
   <div class="screen-page">
     <div class="page-header">
       <h2>💊 REKAP OBAT</h2>
-      <p class="page-subtitle">Migrasi screen legacy RPT0016 — rekapObat.zul</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

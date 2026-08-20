@@ -139,7 +139,6 @@ function printReport() {
   <div class="screen-page">
     <div class="page-header">
       <h2>🏥 LAPORAN PASIEN RAWAT INAP</h2>
-      <p class="page-subtitle">Migrasi screen legacy RPT0005 — laporanPasienBangsal.zul</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

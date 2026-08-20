@@ -98,7 +98,6 @@ onBeforeUnmount(() => {
     <div class="page-header">
       <div>
         <h2>🛏️ Informasi Kamar Ranap</h2>
-        <p class="page-subtitle">Migrasi form legacy SC0072 — ringkasan ketersediaan bed per kelas tarif dan ruangan</p>
       </div>
       <div class="header-actions">
         <span v-if="lastUpdated" class="updated-label">

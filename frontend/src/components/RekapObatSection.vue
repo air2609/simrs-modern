@@ -161,7 +161,6 @@ onMounted(() => {
   <div class="screen-page">
     <div class="page-header">
       <h2>💊 FORM INFORMASI REKAP OBAT</h2>
-      <p class="page-subtitle">Migrasi screen legacy SC0208 — rekapObat.zul (Rekap Obat Pasien Rawat Inap)</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

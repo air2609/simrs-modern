@@ -75,4 +75,13 @@ public class AuthController {
 
         return ResponseEntity.ok(ApiResponse.ok("Logged out"));
     }
+
+    @PostMapping("/change-password")
+    public ApiResponse<String> changePassword(@RequestBody ChangePasswordRequest request,
+            HttpServletRequest httpServletRequest) {
+        HttpSession session = httpServletRequest.getSession(false);
+        String username = legacyAuthService.requireUsername(session);
+        legacyAuthService.changePassword(username, request.getOldPassword(), request.getNewPassword());
+        return ApiResponse.ok("Password Telah Berubah");
+    }
 }

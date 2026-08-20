@@ -17,6 +17,29 @@ const message = ref('');
 
 const activeTab = ref('user');
 
+// ===================== TOAST / DIALOG (notifikasi cantik) =====================
+const toast = ref({ visible: false, message: '', type: 'success' });
+const dialog = ref({ visible: false, title: '', message: '', confirmText: '✔ OK', cancelText: '✕ BATAL', resolve: null });
+let toastTimer = null;
+
+function showToast(message, type = 'success') {
+  toast.value = { visible: true, message, type };
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toast.value.visible = false; }, 3500);
+}
+
+function confirmAction(title, message, confirmText = '✔ HAPUS') {
+  return new Promise((resolve) => {
+    dialog.value = { visible: true, title, message, confirmText, cancelText: '✕ BATAL', resolve };
+  });
+}
+
+function resolveDialog(result) {
+  const resolve = dialog.value.resolve;
+  dialog.value.visible = false;
+  if (resolve) resolve(result);
+}
+
 // ===================== USER MASTER =====================
 const groups = ref([]);
 const branches = ref([]);
@@ -51,6 +74,16 @@ const privilegeForm = reactive({
 });
 
 const privilegeKeyword = ref('');
+
+// Hapus hanya aktif jika screen terpilih sudah ada di daftar privilege user tsb
+// (bukan saat baru memilih screen utk ditambahkan).
+const canDeletePrivilege = computed(() => {
+  if (!privilegeForm.screenId) {
+    return false;
+  }
+  const selectedId = Number(privilegeForm.screenId);
+  return privileges.value.some((p) => Number(p.screenId) === selectedId);
+});
 
 // Pagination (shared)
 const pageSize = 10;
@@ -184,16 +217,20 @@ async function submitUser() {
     });
     await loadUsers();
     applyUserRow(user);
-    message.value = isUpdate ? 'Data user berhasil diubah.' : 'Data user berhasil ditambahkan.';
+    showToast(isUpdate ? '✅ Data user berhasil diubah.' : '✅ Data user berhasil ditambahkan.');
   } catch (requestError) {
-    error.value = requestError.message;
+    showToast('❌ ' + requestError.message, 'error');
   } finally {
     saving.value = false;
   }
 }
 
 async function removeUser() {
-  if (!userForm.id || !window.confirm('Hapus data user terpilih?')) {
+  if (!userForm.id) {
+    return;
+  }
+  const confirmed = await confirmAction('KONFIRMASI HAPUS', 'Hapus data user terpilih?');
+  if (!confirmed) {
     return;
   }
 
@@ -205,9 +242,9 @@ async function removeUser() {
     await request(`/admin/users/${userForm.id}`, { method: 'DELETE' });
     await loadUsers();
     resetUserForm();
-    message.value = 'Data user berhasil dihapus.';
+    showToast('✅ Data user berhasil dihapus.');
   } catch (requestError) {
-    error.value = requestError.message;
+    showToast('❌ ' + requestError.message, 'error');
   } finally {
     saving.value = false;
   }
@@ -263,8 +300,9 @@ async function submitPrivilege() {
   message.value = '';
 
   try {
-    const isUpdate = Boolean(privilegeForm.screenId);
-    const method = privilegeForm.screenId ? 'PUT' : 'POST';
+    // Update hanya jika privilege tsb SUDAH ada di daftar; screen baru = tambah (POST)
+    const isUpdate = canDeletePrivilege.value;
+    const method = isUpdate ? 'PUT' : 'POST';
     const body = {
       userName: privilegeForm.userName,
       screenId: privilegeForm.screenId ? Number(privilegeForm.screenId) : null,
@@ -275,16 +313,20 @@ async function submitPrivilege() {
       body: JSON.stringify(body)
     });
     await loadPrivileges();
-    message.value = isUpdate ? 'Data privilege berhasil diubah.' : 'Data privilege berhasil ditambahkan.';
+    showToast(isUpdate ? '✅ Data privilege berhasil diubah.' : '✅ Data privilege berhasil ditambahkan.');
   } catch (requestError) {
-    error.value = requestError.message;
+    showToast('❌ ' + requestError.message, 'error');
   } finally {
     saving.value = false;
   }
 }
 
 async function removePrivilege() {
-  if (!privilegeForm.screenId || !window.confirm('Hapus data privilege terpilih?')) {
+  if (!canDeletePrivilege.value) {
+    return;
+  }
+  const confirmed = await confirmAction('KONFIRMASI HAPUS', 'Hapus data privilege terpilih?');
+  if (!confirmed) {
     return;
   }
 
@@ -296,10 +338,13 @@ async function removePrivilege() {
     const query = `?userName=${encodeURIComponent(privilegeForm.userName)}&screenId=${privilegeForm.screenId}`;
     await request(`/admin/users/privileges${query}`, { method: 'DELETE' });
     await loadPrivileges();
-    resetPrivilegeForm();
-    message.value = 'Data privilege berhasil dihapus.';
+    // Pertahankan User ID, hanya kosongkan field screen setelah hapus
+    privilegeForm.screenId = '';
+    privilegeForm.screenCode = '';
+    privilegeForm.screenName = '';
+    showToast('✅ Data privilege berhasil dihapus.');
   } catch (requestError) {
-    error.value = requestError.message;
+    showToast('❌ ' + requestError.message, 'error');
   } finally {
     saving.value = false;
   }
@@ -338,13 +383,11 @@ onMounted(() => {
     <div class="page-header">
       <div>
         <h2>👤 User Maintenance</h2>
-        <p class="page-subtitle">Migrasi form legacy SCM0001 — memelihara data user dan privilege akses</p>
       </div>
     </div>
 
     <!-- Notifications -->
-    <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>
-    <p v-else-if="message" class="status-banner status-banner--success">{{ message }}</p>
+    <p v-if="error" class="status-banner status-banner--error">⚠️ {{ error }}</p>
 
     <div v-if="loading" class="loading">Memuat data user...</div>
 
@@ -504,7 +547,7 @@ onMounted(() => {
           <div class="save-actions">
             <button class="primary-button" :disabled="saving" @click="submitPrivilege">💾 Simpan</button>
             <button class="secondary-button" :disabled="saving" @click="resetPrivilegeForm">Batal</button>
-            <button class="danger-button" :disabled="saving || !privilegeForm.screenId" @click="removePrivilege">Hapus</button>
+            <button class="danger-button" :disabled="saving || !canDeletePrivilege" @click="removePrivilege">Hapus</button>
           </div>
         </div>
 
@@ -615,6 +658,29 @@ onMounted(() => {
         </div>
       </div>
     </template>
+
+    <!-- ==================== DIALOG KONFIRMASI ==================== -->
+    <transition name="dialog-fade">
+      <div v-if="dialog.visible" class="dialog-overlay" @click.self="resolveDialog(false)">
+        <div class="dialog-box">
+          <div class="dialog-icon">🗑️</div>
+          <div class="dialog-title">{{ dialog.title }}</div>
+          <div class="dialog-message">{{ dialog.message }}</div>
+          <div class="dialog-buttons">
+            <button class="btn-confirm" type="button" @click="resolveDialog(true)">{{ dialog.confirmText }}</button>
+            <button class="btn-cancel" type="button" @click="resolveDialog(false)">{{ dialog.cancelText }}</button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- ==================== TOAST ==================== -->
+    <transition name="toast-fade">
+      <div v-if="toast.visible" class="toast" :class="'toast--' + toast.type">
+        <span class="toast-icon">{{ toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : 'ℹ️' }}</span>
+        <span class="toast-message">{{ toast.message }}</span>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -713,4 +779,80 @@ input:disabled, select:disabled { background: #f7f7f9; color: #6b7280; }
   overflow-y: auto;
 }
 .modal h3 { margin: 0 0 12px; color: #304b73; }
+
+/* ==================== DIALOG KONFIRMASI ==================== */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 80;
+}
+.dialog-box {
+  background: #fff;
+  border-radius: 18px;
+  width: 400px;
+  max-width: 92vw;
+  padding: 28px 30px;
+  text-align: center;
+  box-shadow: 0 26px 55px rgba(15, 23, 42, 0.35);
+  border-top: 5px solid #d64567;
+}
+.dialog-icon { font-size: 46px; margin-bottom: 10px; }
+.dialog-title { font-size: 17px; font-weight: 800; color: #304b73; margin-bottom: 8px; }
+.dialog-message { font-size: 14px; color: #4b5563; line-height: 1.55; margin-bottom: 20px; white-space: pre-line; }
+.dialog-buttons { display: flex; justify-content: center; gap: 12px; }
+.dialog-buttons button { min-width: 120px; }
+.btn-confirm {
+  padding: 10px 0;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #d64567, #b83250);
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(214, 69, 103, 0.35);
+}
+.btn-confirm:hover { transform: translateY(-1px); }
+.btn-cancel {
+  padding: 10px 0;
+  border: 1px solid #d1d9e6;
+  border-radius: 10px;
+  background: #fff;
+  color: #3d4b63;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+.btn-cancel:hover { background: #f6f8fb; }
+.dialog-fade-enter-active, .dialog-fade-leave-active { transition: all 0.25s ease; }
+.dialog-fade-enter-from, .dialog-fade-leave-to { opacity: 0; transform: scale(0.92); }
+
+/* ==================== TOAST ==================== */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
+  max-width: 440px;
+}
+.toast--success { background: linear-gradient(135deg, #177245, #2f9e63); }
+.toast--error { background: linear-gradient(135deg, #a32943, #d64567); }
+.toast--info { background: linear-gradient(135deg, #304b73, #5f83c2); }
+.toast-icon { font-size: 18px; }
+.toast-message { flex: 1; }
+.toast-fade-enter-active, .toast-fade-leave-active { transition: all 0.3s ease; }
+.toast-fade-enter-from, .toast-fade-leave-to { opacity: 0; transform: translateY(16px); }
 </style>

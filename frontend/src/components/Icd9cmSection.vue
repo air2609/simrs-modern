@@ -160,7 +160,6 @@ onMounted(initialize);
     <div class="page-header">
       <div>
         <h2>🩺 ICD-9-CM</h2>
-        <p class="page-subtitle">Migrasi form legacy SCM0028 — master ICD-9-CM (International Classification of Diseases, 9th Revision, Clinical Modification)</p>
       </div>
       <div class="header-actions">
         <button class="small-button" type="button" @click="initialize">🔄 Refresh</button>

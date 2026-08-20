@@ -338,7 +338,6 @@ onMounted(() => {
     <div class="page-header">
       <div>
         <h2>🩺 Poli Dokter</h2>
-        <p class="page-subtitle">Migrasi form legacy SCM0059 — mengelola dokter poli, status, dan jadwal praktek</p>
       </div>
     </div>
 

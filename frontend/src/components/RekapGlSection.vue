@@ -122,7 +122,6 @@ onMounted(loadList);
   <div class="screen-page">
     <div class="page-header">
       <h2>📋 REKAP GL</h2>
-      <p class="page-subtitle">Migrasi screen legacy SC0176 — rekapGl.zul (Rekapitulasi General Ledger)</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

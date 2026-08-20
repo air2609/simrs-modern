@@ -202,7 +202,6 @@ function numberLabel(number) {
   <div class="screen-page">
     <div class="page-header">
       <h2>📢 MASTER ANTRIAN DOKTER</h2>
-      <p class="page-subtitle">Migrasi screen legacy SCM0053 — delayAntrian.zul (Delay &amp; Text Antrian, Keluarkan dari Antrian)</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

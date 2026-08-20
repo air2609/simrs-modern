@@ -102,7 +102,6 @@ onBeforeUnmount(() => {
   <div class="screen-page">
     <div class="page-header">
       <h2>📺 ANTRIAN DOKTER</h2>
-      <p class="page-subtitle">Migrasi screen legacy RPT0019 — antrianDokter.zul (Display Antrian Dokter)</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

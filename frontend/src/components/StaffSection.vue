@@ -53,6 +53,35 @@ const form = ref({
 const selectedId = ref(null);
 const saving = ref(false);
 
+// ===================== PENCARIAN DAFTAR STAFF =====================
+const staffCodeKeyword = ref('');
+const staffNameKeyword = ref('');
+const staffSearching = ref(false);
+
+async function loadStaffs() {
+  staffSearching.value = true;
+  try {
+    const params = new URLSearchParams();
+    if (staffCodeKeyword.value && staffCodeKeyword.value.trim()) {
+      params.set('code', staffCodeKeyword.value.trim());
+    }
+    if (staffNameKeyword.value && staffNameKeyword.value.trim()) {
+      params.set('name', staffNameKeyword.value.trim());
+    }
+    const query = params.toString() ? `?${params.toString()}` : '';
+    rows.value = await request(`/master/staff${query}`);
+    currentPage.value = 1;
+  } finally {
+    staffSearching.value = false;
+  }
+}
+
+function resetStaffSearch() {
+  staffCodeKeyword.value = '';
+  staffNameKeyword.value = '';
+  loadStaffs();
+}
+
 async function request(path, options = {}) {
   const response = await fetch(`${props.apiBaseUrl}${path}`, {
     credentials: 'include',
@@ -74,11 +103,6 @@ async function request(path, options = {}) {
   }
 
   return payload.data;
-}
-
-async function loadStaffs() {
-  rows.value = await request('/master/staff');
-  currentPage.value = 1;
 }
 
 async function loadMasters() {
@@ -230,7 +254,6 @@ onMounted(initialize);
     <div class="page-header">
       <div>
         <h2>👥 Master Staff</h2>
-        <p class="page-subtitle">Migrasi form legacy SCM0031 — master staff</p>
       </div>
       <div class="header-actions">
         <button class="small-button" type="button" @click="initialize">🔄 Refresh</button>
@@ -386,7 +409,25 @@ onMounted(initialize);
 
       <!-- List -->
       <div class="card">
-        <h3 class="card-title">DAFTAR STAFF</h3>
+        <div class="card-header-row">
+          <h3 class="card-title">DAFTAR STAFF</h3>
+          <div class="staff-search">
+            <input
+              v-model="staffCodeKeyword"
+              type="text"
+              placeholder="Kode staff"
+              @keyup.enter="loadStaffs"
+            />
+            <input
+              v-model="staffNameKeyword"
+              type="text"
+              placeholder="Nama staff"
+              @keyup.enter="loadStaffs"
+            />
+            <button class="small-button" type="button" :disabled="staffSearching" @click="loadStaffs">🔍 Cari</button>
+            <button class="small-button" type="button" :disabled="staffSearching" @click="resetStaffSearch">Reset</button>
+          </div>
+        </div>
         <div class="table-wrap">
           <table class="table">
             <thead>
@@ -443,6 +484,27 @@ onMounted(initialize);
 
 .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
 .card-title { margin: 0 0 16px; color: #304b73; font-size: 15px; }
+.card-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.card-header-row .card-title { margin: 0; }
+.staff-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.staff-search input {
+  width: 130px;
+  padding: 7px 10px;
+  border: 1px solid #d1d9e6;
+  border-radius: 8px;
+  font-size: 13px;
+}
 
 .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; }
 .field { display: flex; flex-direction: column; gap: 6px; }

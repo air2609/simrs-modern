@@ -158,7 +158,6 @@ function fmtDisplayDate(iso) {
   <div class="screen-page">
     <div class="page-header">
       <h2>📊 LAPORAN REKAP TINDAKAN</h2>
-      <p class="page-subtitle">Migrasi screen legacy RPT0011 — rekapTindakan.zul</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

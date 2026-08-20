@@ -406,7 +406,6 @@ async function saveDiagnose() {
     <div class="page-header">
       <div>
         <h2>📝 Form Rekam Medis Diagnosa</h2>
-        <p class="page-subtitle">Migrasi screen legacy SC0206 — diagnosa pasien, history, dan hasil laboratorium</p>
       </div>
     </div>
 

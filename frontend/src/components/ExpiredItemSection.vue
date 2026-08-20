@@ -96,7 +96,6 @@ onMounted(initialize);
     <div class="page-header">
       <div>
         <h2>📦 Daftar O-BM Yang Hampir Kadaluwarsa</h2>
-        <p class="page-subtitle">Migrasi screen legacy SC0190 — laporan item yang hampir kadaluwarsa</p>
       </div>
       <div class="header-actions">
         <button class="small-button" type="button" @click="initialize">🔄 Refresh</button>

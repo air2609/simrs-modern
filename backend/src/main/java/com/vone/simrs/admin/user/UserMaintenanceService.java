@@ -104,7 +104,7 @@ public class UserMaintenanceService {
 
         jdbcTemplate.update(
                 "insert into ms_user (n_user_id, n_group_id, n_staff_id, n_branch_id, "
-                        + "v_user_name, v_password, v_user_full_name, v_who_create, d_whn_create) "
+                        + "v_user_name, v_password, v_user_full_name, v_whocreate, d_whncreate) "
                         + "values (?, ?, ?, ?, ?, ?, ?, ?, now())",
                 userId,
                 groupId,
@@ -129,7 +129,7 @@ public class UserMaintenanceService {
 
         jdbcTemplate.update(
                 "update ms_user set n_group_id = ?, n_staff_id = ?, n_branch_id = ?, "
-                        + "v_user_name = ?, v_user_full_name = ?, v_who_change = ?, d_whn_change = now() "
+                        + "v_user_name = ?, v_user_full_name = ?, v_whochange = ?, d_whnchange = now() "
                         + "where n_user_id = ?",
                 groupId,
                 staffId,
@@ -180,7 +180,7 @@ public class UserMaintenanceService {
         ensurePrivilegeAvailable(userId, screenId);
 
         jdbcTemplate.update(
-                "insert into tb_user_privilege (n_user_id, n_screen_id, v_access_type, v_who_create, d_whn_create) "
+                "insert into tb_user_privilege (n_user_id, n_screen_id, v_access_type, v_whocreate, d_whncreate) "
                         + "values (?, ?, ?, ?, now())",
                 userId,
                 screenId,
@@ -199,7 +199,7 @@ public class UserMaintenanceService {
         getPrivilege(userId, screenId);
 
         jdbcTemplate.update(
-                "update tb_user_privilege set v_access_type = ?, v_who_change = ?, d_whn_change = now() "
+                "update tb_user_privilege set v_access_type = ?, v_whochange = ?, d_whnchange = now() "
                         + "where n_user_id = ? and n_screen_id = ?",
                 accessType,
                 normalizeActor(username),

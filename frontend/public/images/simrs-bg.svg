@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0d2a5c"/>
+      <stop offset="55%" stop-color="#14437e"/>
+      <stop offset="100%" stop-color="#0f5f7a"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.05"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#2dd4bf"/>
+    </linearGradient>
+    <linearGradient id="cross" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7dd3fc"/>
+      <stop offset="100%" stop-color="#2dd4bf"/>
+    </linearGradient>
+    <radialGradient id="glow1" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#2dd4bf" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#2dd4bf" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="56" height="56" patternUnits="userSpaceOnUse">
+      <path d="M56 0H0V56" fill="none" stroke="#ffffff" stroke-opacity="0.05" stroke-width="1"/>
+    </pattern>
+    <pattern id="dots" width="26" height="26" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.2" fill="#ffffff" fill-opacity="0.10"/>
+    </pattern>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+  </defs>
+
+  <!-- ===== background ===== -->
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <rect width="1600" height="1000" fill="url(#grid)"/>
+  <rect width="1600" height="1000" fill="url(#dots)"/>
+
+  <!-- glows -->
+  <circle cx="250" cy="180" r="340" fill="url(#glow1)"/>
+  <circle cx="1380" cy="760" r="380" fill="url(#glow2)"/>
+  <circle cx="1200" cy="160" r="240" fill="url(#glow1)" opacity="0.6"/>
+
+  <!-- ===== network nodes (SIMRS integration) ===== -->
+  <g opacity="0.7">
+    <path d="M180 320 L430 240 L700 380" stroke="url(#accent)" stroke-width="1.6" fill="none" stroke-dasharray="4 6"/>
+    <path d="M430 240 L800 520 L1100 300 L1420 420" stroke="url(#accent)" stroke-width="1.4" fill="none" stroke-dasharray="4 6" opacity="0.6"/>
+    <path d="M700 380 L800 520 L1020 700" stroke="url(#accent)" stroke-width="1.4" fill="none" stroke-dasharray="4 6" opacity="0.5"/>
+    <g fill="#38bdf8">
+      <circle cx="180" cy="320" r="6"/>
+      <circle cx="430" cy="240" r="8"/>
+      <circle cx="700" cy="380" r="6"/>
+      <circle cx="800" cy="520" r="10"/>
+      <circle cx="1100" cy="300" r="7"/>
+      <circle cx="1420" cy="420" r="8"/>
+      <circle cx="1020" cy="700" r="6"/>
+    </g>
+    <g fill="#2dd4bf">
+      <circle cx="800" cy="520" r="4"/>
+      <circle cx="430" cy="240" r="4"/>
+    </g>
+  </g>
+
+  <!-- ===== hospital building silhouette ===== -->
+  <g opacity="0.22">
+    <path d="M0 1000 L0 880 L120 880 L120 820 L230 820 L230 880 L400 880 L400 760 L520 760 L520 880 L700 880 L700 700 L860 700 L860 880 L1080 880 L1080 780 L1240 780 L1240 880 L1460 880 L1460 830 L1600 830 L1600 1000 Z" fill="#0a1f45"/>
+    <g fill="#ffffff" opacity="0.12">
+      <rect x="40" y="890" width="44" height="110"/>
+      <rect x="180" y="890" width="44" height="110"/>
+      <rect x="440" y="890" width="44" height="110"/>
+      <rect x="900" y="890" width="44" height="110"/>
+      <rect x="1280" y="890" width="44" height="110"/>
+    </g>
+  </g>
+
+  <!-- ===== ECG / heartbeat line ===== -->
+  <g stroke="url(#accent)" stroke-width="3.4" fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#soft)">
+    <path d="M-20 540 L160 540 L185 540 L210 480 L245 610 L280 500 L310 540 L430 540 L460 540 L490 470 L530 630 L570 500 L600 540 L760 540" opacity="0.55"/>
+  </g>
+  <g stroke="#7ff0e3" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M-20 540 L160 540 L185 540 L210 480 L245 610 L280 500 L310 540 L430 540 L460 540 L490 470 L530 630 L570 500 L600 540 L760 540"/>
+  </g>
+
+  <!-- ===== medical cross ===== -->
+  <g transform="translate(1200 260)" opacity="0.95">
+    <circle r="70" fill="#ffffff" fill-opacity="0.08"/>
+    <path d="M-26 -44 h52 v18 h18 v52 h-18 v18 h-52 v-18 h-18 v-52 h18 Z" fill="url(#cross)"/>
+  </g>
+  <g transform="translate(300 700)" opacity="0.5">
+    <circle r="44" fill="#ffffff" fill-opacity="0.06"/>
+    <path d="M-16 -27 h32 v11 h11 v32 h-11 v11 h-32 v-11 h-11 v-32 h11 Z" fill="url(#cross)"/>
+  </g>
+
+  <!-- ===== floating UI / dashboard cards ===== -->
+  <!-- card: bar chart -->
+  <g transform="translate(180 120)">
+    <rect width="230" height="140" rx="14" fill="url(#card)" stroke="#ffffff" stroke-opacity="0.18"/>
+    <text x="18" y="28" fill="#bfe3ff" font-size="13" font-family="Arial" font-weight="700">LAPORAN BULANAN</text>
+    <g fill="url(#accent)">
+      <rect x="20" y="108" width="18" height="22" rx="3" opacity="0.85"/>
+      <rect x="48" y="92" width="18" height="38" rx="3" opacity="0.95"/>
+      <rect x="76" y="100" width="18" height="30" rx="3"/>
+      <rect x="104" y="78" width="18" height="52" rx="3"/>
+      <rect x="132" y="86" width="18" height="44" rx="3" opacity="0.9"/>
+    </g>
+    <path d="M168 112 L188 96 L206 104 L224 72" stroke="#7ff0e3" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="224" cy="72" r="3.4" fill="#7ff0e3"/>
+  </g>
+
+  <!-- card: patient monitor -->
+  <g transform="translate(1240 460)">
+    <rect width="240" height="150" rx="14" fill="url(#card)" stroke="#ffffff" stroke-opacity="0.18"/>
+    <text x="18" y="28" fill="#bfe3ff" font-size="13" font-family="Arial" font-weight="700">MONITOR PASIEN</text>
+    <rect x="18" y="40" width="96" height="44" rx="8" fill="#ffffff" fill-opacity="0.08"/>
+    <text x="32" y="60" fill="#9fd8ff" font-size="11" font-family="Arial">NAMA</text>
+    <text x="32" y="76" fill="#ffffff" font-size="13" font-family="Arial" font-weight="700">A. SETIAWAN</text>
+    <path d="M132 62 L164 62 L176 46 L190 78 L202 62 L222 62" stroke="#7ff0e3" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="18" y="98" width="44" height="34" rx="8" fill="#ffffff" fill-opacity="0.08"/>
+    <text x="28" y="114" fill="#9fd8ff" font-size="10" font-family="Arial">TD</text>
+    <text x="28" y="128" fill="#ffffff" font-size="12" font-family="Arial" font-weight="700">120/80</text>
+    <rect x="72" y="98" width="44" height="34" rx="8" fill="#ffffff" fill-opacity="0.08"/>
+    <text x="82" y="114" fill="#9fd8ff" font-size="10" font-family="Arial">N</text>
+    <text x="82" y="128" fill="#ffffff" font-size="12" font-family="Arial" font-weight="700">72</text>
+    <rect x="126" y="98" width="44" height="34" rx="8" fill="#ffffff" fill-opacity="0.08"/>
+    <text x="136" y="114" fill="#9fd8ff" font-size="10" font-family="Arial">RR</text>
+    <text x="136" y="128" fill="#ffffff" font-size="12" font-family="Arial" font-weight="700">16</text>
+  </g>
+
+  <!-- card: donut / stat -->
+  <g transform="translate(600 700)">
+    <rect width="220" height="130" rx="14" fill="url(#card)" stroke="#ffffff" stroke-opacity="0.18"/>
+    <text x="18" y="28" fill="#bfe3ff" font-size="13" font-family="Arial" font-weight="700">STATISTIK</text>
+    <circle cx="60" cy="82" r="30" fill="none" stroke="#ffffff" stroke-opacity="0.14" stroke-width="10"/>
+    <circle cx="60" cy="82" r="30" fill="none" stroke="url(#accent)" stroke-width="10" stroke-dasharray="126 188" stroke-linecap="round" transform="rotate(-90 60 82)"/>
+    <text x="60" y="88" text-anchor="middle" fill="#ffffff" font-size="15" font-family="Arial" font-weight="800">68%</text>
+    <text x="112" y="72" fill="#bfe3ff" font-size="11" font-family="Arial">Bed Terisi</text>
+    <text x="112" y="94" fill="#bfe3ff" font-size="11" font-family="Arial">Pasien Hari Ini</text>
+    <text x="112" y="116" fill="#7ff0e3" font-size="12" font-family="Arial" font-weight="700">+ 24</text>
+  </g>
+
+  <!-- ===== pill / capsule ===== -->
+  <g transform="translate(560 260) rotate(-18)" opacity="0.85">
+    <rect x="-30" y="-12" width="60" height="24" rx="12" fill="url(#accent)" fill-opacity="0.8"/>
+    <line x1="0" y1="-12" x2="0" y2="12" stroke="#ffffff" stroke-opacity="0.55" stroke-width="2"/>
+  </g>
+  <g transform="translate(1030 160) rotate(24)" opacity="0.7">
+    <rect x="-22" y="-9" width="44" height="18" rx="9" fill="#2dd4bf" fill-opacity="0.55"/>
+    <line x1="0" y1="-9" x2="0" y2="9" stroke="#ffffff" stroke-opacity="0.5" stroke-width="1.6"/>
+  </g>
+
+  <!-- ===== subtle vignette ===== -->
+  <rect width="1600" height="1000" fill="url(#bg)" opacity="0" />
+  <rect width="1600" height="1000" fill="#041224" opacity="0.18"/>
+</svg>

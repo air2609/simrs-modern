@@ -191,7 +191,6 @@ onMounted(initialize);
     <div class="page-header">
       <div>
         <h2>🩺 Update Master Tindakan</h2>
-        <p class="page-subtitle">Migrasi form legacy SCM0056 — update batch master tindakan</p>
       </div>
       <div class="header-actions">
         <button class="small-button" type="button" @click="initialize">🔄 Refresh</button>

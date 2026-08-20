@@ -723,7 +723,6 @@ watch(
     <div class="page-header">
       <div>
         <h2>🏥 Transaksi Poliklinik</h2>
-        <p class="page-subtitle">Migrasi form legacy SC0091 — input transaksi poliklinik rawat jalan</p>
       </div>
     </div>
 

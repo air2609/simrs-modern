@@ -653,7 +653,6 @@ function historySubtotal() {
   <div class="screen-page">
     <div class="page-header">
       <h2>🛏️ TRANSAKSI BANGSAL</h2>
-      <p class="page-subtitle">Migrasi screen legacy SC0031 — ward.zul (FORM INPUT TRANSAKSI BANGSAL)</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

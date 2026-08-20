@@ -63,6 +63,66 @@ public class PendapatanDokterService {
     }
 
     /**
+     * Staff id user yang login jika berperan dokter (n_staff_role = 2).
+     * Migrasi validasi {@code DoctorEarningController.openClick()}.
+     */
+    public Integer requireDoctorStaffId(String username) {
+        List<StaffRoleRow> rows = jdbcTemplate.query(
+                "select usr.n_staff_id, staff.n_staff_role from ms_user usr "
+                        + "join ms_staff staff on staff.n_staff_id = usr.n_staff_id "
+                        + "where upper(usr.v_user_name) = ?",
+                (resultSet, rowNum) -> new StaffRoleRow(
+                        getNullableInteger(resultSet, "n_staff_id"),
+                        getNullableInteger(resultSet, "n_staff_role")),
+                username == null ? "" : username.trim().toUpperCase());
+        if (rows.isEmpty()) {
+            throw new IllegalArgumentException("Staff untuk user tidak ditemukan.");
+        }
+        StaffRoleRow row = rows.get(0);
+        if (row.staffId == null || row.role == null || row.role != 2) {
+            throw new IllegalArgumentException(
+                    "Anda Login Bukan Sebagai Dokter, Laporan Tidak Dapat Ditampilkan!");
+        }
+        return row.staffId;
+    }
+
+    private Integer getNullableInteger(java.sql.ResultSet resultSet, String columnName)
+            throws java.sql.SQLException {
+        Number number = (Number) resultSet.getObject(columnName);
+        return number == null ? null : number.intValue();
+    }
+
+    private static final class StaffRoleRow {
+        private final Integer staffId;
+        private final Integer role;
+
+        private StaffRoleRow(Integer staffId, Integer role) {
+            this.staffId = staffId;
+            this.role = role;
+        }
+    }
+
+    /** Cari satu dokter berdasarkan staff id (dipakai earning report RPT0017). */
+    private List<DoctorOptionResponse> searchDoctorsById(Integer staffId) {
+        return jdbcTemplate.query(
+                "select staff.n_staff_id, staff.v_staff_code, staff.v_staff_name, "
+                        + "string_agg(distinct unt.v_unit_name, ';' order by unt.v_unit_name) as units "
+                        + "from ms_doctor dr "
+                        + "join ms_staff staff on staff.n_staff_id = dr.n_staff_id "
+                        + "left join ms_staff_in_unit siu on siu.n_staff_id = staff.n_staff_id "
+                        + "left join ms_unit unt on unt.n_unit_id = siu.n_unit_id "
+                        + "where dr.n_msgroup_id = 4 and staff.n_staff_id = ? "
+                        + "and staff.d_staff_fired_date is null "
+                        + "group by staff.n_staff_id, staff.v_staff_code, staff.v_staff_name",
+                (resultSet, rowNum) -> new DoctorOptionResponse(
+                        resultSet.getInt("n_staff_id"),
+                        resultSet.getString("v_staff_code"),
+                        resultSet.getString("v_staff_name"),
+                        resultSet.getString("units") == null ? "" : resultSet.getString("units")),
+                staffId);
+    }
+
+    /**
      * Laporan pendapatan dokter.
      *
      * @param tipe        PD, OBAT, atau ALL
@@ -88,6 +148,34 @@ public class PendapatanDokterService {
 
         if (staffId == null) {
             throw new IllegalArgumentException("Pilih data dokter terlebih dahulu");
+        }
+        if ("OBAT".equalsIgnoreCase(reportType)) {
+            return getPenjualanObat(staffId, fromDate, toDate, pasType);
+        }
+        return getPendapatanTindakan(staffId, fromDate, toDate, pasType);
+    }
+
+    /**
+     * Laporan earning (RPT0017) — hanya untuk dokter yang sedang login.
+     * Untuk tipe ALL, rekapitulasi hanya dokter tsb (bukan semua dokter).
+     */
+    public PendapatanDokterResponse getEarningReport(Integer staffId, String tipe, String from,
+            String to, String patientType) {
+        if (!hasText(from) || !hasText(to)) {
+            throw new IllegalArgumentException("Kedua tanggal harus diisi....!");
+        }
+        if (staffId == null) {
+            throw new IllegalArgumentException("Anda Login Bukan Sebagai Dokter, Laporan Tidak Dapat Ditampilkan!");
+        }
+        String reportType = hasText(tipe) ? tipe.toUpperCase() : "PD";
+        String pasType = hasText(patientType) ? patientType.toUpperCase() : "ALL";
+        LocalDate fromDate = LocalDate.parse(from);
+        LocalDate toDate = LocalDate.parse(to);
+
+        if ("ALL".equalsIgnoreCase(reportType)) {
+            List<PendapatanDokterAllRowResponse> allRows =
+                    getDoctorReportAll(fromDate, toDate, pasType, staffId);
+            return new PendapatanDokterResponse("ALL", 0, new ArrayList<>(), allRows);
         }
         if ("OBAT".equalsIgnoreCase(reportType)) {
             return getPenjualanObat(staffId, fromDate, toDate, pasType);
@@ -177,7 +265,18 @@ public class PendapatanDokterService {
     /** ALL — migrasi {@code NoteManagerImpl.getDoctorReportAll()}. */
     private List<PendapatanDokterAllRowResponse> getDoctorReportAll(LocalDate from, LocalDate to,
             String patientType) {
-        List<DoctorOptionResponse> doctors = searchDoctors("", "");
+        return getDoctorReportAll(from, to, patientType, null);
+    }
+
+    /**
+     * ALL — migrasi {@code NoteManagerImpl.getDoctorReportAll()}. Jika
+     * {@code onlyStaffId} tidak null, hanya dokter tsb yang direkap (RPT0017).
+     */
+    private List<PendapatanDokterAllRowResponse> getDoctorReportAll(LocalDate from, LocalDate to,
+            String patientType, Integer onlyStaffId) {
+        List<DoctorOptionResponse> doctors = onlyStaffId == null
+                ? searchDoctors("", "")
+                : searchDoctorsById(onlyStaffId);
 
         Timestamp tgl1 = Timestamp.valueOf(from.atStartOfDay());
         Timestamp tgl2 = Timestamp.valueOf(to.atTime(23, 59, 59));

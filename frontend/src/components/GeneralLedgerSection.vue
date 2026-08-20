@@ -167,7 +167,6 @@ onMounted(initialize);
   <div class="screen-page">
     <div class="page-header">
       <h2>📒 GENERAL LEDGER</h2>
-      <p class="page-subtitle">Migrasi screen legacy SC0198 — generalLedger.zul (Buku Besar)</p>
     </div>
 
     <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>

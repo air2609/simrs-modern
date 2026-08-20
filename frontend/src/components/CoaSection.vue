@@ -203,7 +203,6 @@ onMounted(initialize);
     <div class="page-header">
       <div>
         <h2>📒 Chart of Account</h2>
-        <p class="page-subtitle">Migrasi form legacy SCM0046 — master chart of account</p>
       </div>
       <div class="header-actions">
         <button class="small-button" type="button" @click="initialize">🔄 Refresh</button>

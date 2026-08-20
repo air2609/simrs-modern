@@ -130,7 +130,6 @@ onMounted(initialize);
     <div class="page-header">
       <div>
         <h2>🗃️ Form Berkas Rekam Medis</h2>
-        <p class="page-subtitle">Migrasi screen legacy SC0081 — monitoring status berkas rekam medis</p>
       </div>
     </div>
 
