@@ -43,6 +43,51 @@ const privilegeForm = reactive({
 
 const privilegeKeyword = ref('');
 
+// Mode edit privilege: true saat baris list diklik (update), false saat screen baru dipilih (tambah)
+const privilegeEditMode = ref(false);
+
+// ===================== ALERT & CONFIRM =====================
+const showConfirm = ref(false);
+const confirmTitle = ref('');
+const confirmMessage = ref('');
+let confirmCallback = null;
+let messageTimer = null;
+
+function showMessage(text) {
+  message.value = text;
+  if (messageTimer) {
+    clearTimeout(messageTimer);
+  }
+  messageTimer = setTimeout(() => {
+    message.value = '';
+  }, 4000);
+}
+
+function showError(text) {
+  error.value = text;
+}
+
+function askConfirm(title, text, callback) {
+  confirmTitle.value = title;
+  confirmMessage.value = text;
+  confirmCallback = callback;
+  showConfirm.value = true;
+}
+
+function cancelConfirm() {
+  showConfirm.value = false;
+  confirmCallback = null;
+}
+
+async function runConfirm() {
+  const callback = confirmCallback;
+  confirmCallback = null;
+  showConfirm.value = false;
+  if (callback) {
+    await callback();
+  }
+}
+
 // Pagination (shared)
 const pageSize = 10;
 const currentPage = ref(1);
@@ -106,6 +151,7 @@ async function selectGroupAndShowPrivileges(row) {
   // Aktifkan tab GROUP PRIVILEGE dan tampilkan seluruh akses group terpilih
   privilegeForm.groupCode = row.groupCode || '';
   privilegeKeyword.value = '';
+  privilegeEditMode.value = false;
   activeTab.value = 'privilege';
   error.value = '';
   message.value = '';
@@ -137,42 +183,51 @@ async function submitGroup() {
     });
     await loadGroups();
     applyGroupRow(group);
-    message.value = isUpdate ? 'Data group berhasil diubah.' : 'Data group berhasil ditambahkan.';
+    showMessage(isUpdate ? 'Data group berhasil diubah.' : 'Data group berhasil ditambahkan.');
   } catch (requestError) {
-    error.value = requestError.message;
+    showError(requestError.message);
   } finally {
     saving.value = false;
   }
 }
 
-async function removeGroup() {
-  if (!groupForm.id || !window.confirm('Hapus data group terpilih?')) {
+function removeGroup() {
+  if (!groupForm.id) {
     return;
   }
 
-  saving.value = true;
-  error.value = '';
-  message.value = '';
+  askConfirm(
+    'Hapus Group',
+    `Yakin ingin menghapus group ${groupForm.groupCode || ''}? Seluruh privilege dari group ini ikut terhapus.`,
+    async () => {
+      saving.value = true;
+      error.value = '';
+      message.value = '';
 
-  try {
-    await request(`/admin/groups/${groupForm.id}`, { method: 'DELETE' });
-    await loadGroups();
-    resetGroupForm();
-    message.value = 'Data group berhasil dihapus.';
-  } catch (requestError) {
-    error.value = requestError.message;
-  } finally {
-    saving.value = false;
-  }
+      try {
+        await request(`/admin/groups/${groupForm.id}`, { method: 'DELETE' });
+        await loadGroups();
+        resetGroupForm();
+        showMessage('Data group berhasil dihapus.');
+      } catch (requestError) {
+        showError(requestError.message);
+      } finally {
+        saving.value = false;
+      }
+    }
+  );
 }
 
 // ===================== GROUP PRIVILEGE =====================
-function resetPrivilegeForm() {
-  privilegeForm.groupCode = '';
+function resetPrivilegeForm(keepGroupCode = false) {
+  if (!keepGroupCode) {
+    privilegeForm.groupCode = '';
+  }
   privilegeForm.screenId = '';
   privilegeForm.screenCode = '';
   privilegeForm.screenName = '';
   privilegeForm.accessType = 'RW';
+  privilegeEditMode.value = false;
 }
 
 function applyPrivilegeRow(row) {
@@ -181,6 +236,7 @@ function applyPrivilegeRow(row) {
   privilegeForm.screenCode = row.screenCode || '';
   privilegeForm.screenName = row.screenName || '';
   privilegeForm.accessType = row.accessType || 'RW';
+  privilegeEditMode.value = true;
 }
 
 async function loadPrivileges() {
@@ -199,7 +255,7 @@ async function searchScreens() {
     screenResults.value = await request(`/admin/groups/screens${query}`);
     showScreenModal.value = true;
   } catch (requestError) {
-    error.value = requestError.message;
+    showError(requestError.message);
   }
 }
 
@@ -208,6 +264,7 @@ function chooseScreen(screen) {
   privilegeForm.screenCode = screen.screenCode || '';
   privilegeForm.screenName = screen.screenName || '';
   showScreenModal.value = false;
+  privilegeEditMode.value = false; // screen baru dipilih -> mode tambah (POST)
 }
 
 async function submitPrivilege() {
@@ -216,8 +273,8 @@ async function submitPrivilege() {
   message.value = '';
 
   try {
-    const isUpdate = Boolean(privilegeForm.screenId);
-    const method = privilegeForm.screenId ? 'PUT' : 'POST';
+    const isUpdate = privilegeEditMode.value;
+    const method = isUpdate ? 'PUT' : 'POST';
     const body = {
       groupCode: privilegeForm.groupCode,
       screenId: privilegeForm.screenId ? Number(privilegeForm.screenId) : null,
@@ -228,34 +285,46 @@ async function submitPrivilege() {
       body: JSON.stringify(body)
     });
     await loadPrivileges();
-    message.value = isUpdate ? 'Data privilege berhasil diubah.' : 'Data privilege berhasil ditambahkan.';
+    if (isUpdate) {
+      privilegeEditMode.value = false;
+      showMessage('Data privilege berhasil diubah.');
+    } else {
+      resetPrivilegeForm(true);
+      showMessage('Data privilege berhasil ditambahkan.');
+    }
   } catch (requestError) {
-    error.value = requestError.message;
+    showError(requestError.message);
   } finally {
     saving.value = false;
   }
 }
 
-async function removePrivilege() {
-  if (!privilegeForm.screenId || !window.confirm('Hapus data privilege terpilih?')) {
+function removePrivilege() {
+  if (!privilegeEditMode.value || !privilegeForm.screenId) {
     return;
   }
 
-  saving.value = true;
-  error.value = '';
-  message.value = '';
+  askConfirm(
+    'Hapus Privilege',
+    `Yakin ingin menghapus privilege untuk screen ${privilegeForm.screenCode || ''} dari group ${privilegeForm.groupCode || ''}?`,
+    async () => {
+      saving.value = true;
+      error.value = '';
+      message.value = '';
 
-  try {
-    const query = `?groupCode=${encodeURIComponent(privilegeForm.groupCode)}&screenId=${privilegeForm.screenId}`;
-    await request(`/admin/groups/privileges${query}`, { method: 'DELETE' });
-    await loadPrivileges();
-    resetPrivilegeForm();
-    message.value = 'Data privilege berhasil dihapus.';
-  } catch (requestError) {
-    error.value = requestError.message;
-  } finally {
-    saving.value = false;
-  }
+      try {
+        const query = `?groupCode=${encodeURIComponent(privilegeForm.groupCode)}&screenId=${privilegeForm.screenId}`;
+        await request(`/admin/groups/privileges${query}`, { method: 'DELETE' });
+        await loadPrivileges();
+        resetPrivilegeForm(true); // Group ID tetap dipertahankan
+        showMessage('Data privilege berhasil dihapus.');
+      } catch (requestError) {
+        showError(requestError.message);
+      } finally {
+        saving.value = false;
+      }
+    }
+  );
 }
 
 function switchTab(tab) {
@@ -273,7 +342,7 @@ async function initialize() {
     await loadGroups();
     resetGroupForm();
   } catch (requestError) {
-    error.value = requestError.message;
+    showError(requestError.message);
   } finally {
     loading.value = false;
   }
@@ -294,8 +363,16 @@ onMounted(() => {
     </div>
 
     <!-- Notifications -->
-    <p v-if="error" class="status-banner status-banner--error">{{ error }}</p>
-    <p v-else-if="message" class="status-banner status-banner--success">{{ message }}</p>
+    <div v-if="error" class="alert alert--error" role="alert">
+      <span class="alert-icon">⚠️</span>
+      <span class="alert-text">{{ error }}</span>
+      <button class="alert-close" type="button" aria-label="Tutup" @click="error = ''">✕</button>
+    </div>
+    <div v-else-if="message" class="alert alert--success" role="alert">
+      <span class="alert-icon">✅</span>
+      <span class="alert-text">{{ message }}</span>
+      <button class="alert-close" type="button" aria-label="Tutup" @click="message = ''">✕</button>
+    </div>
 
     <div v-if="loading" class="loading">Memuat data group...</div>
 
@@ -419,8 +496,8 @@ onMounted(() => {
           </div>
           <div class="save-actions">
             <button class="primary-button" :disabled="saving" @click="submitPrivilege">💾 Simpan</button>
-            <button class="secondary-button" :disabled="saving" @click="resetPrivilegeForm">Batal</button>
-            <button class="danger-button" :disabled="saving || !privilegeForm.screenId" @click="removePrivilege">Hapus</button>
+            <button class="secondary-button" :disabled="saving" @click="resetPrivilegeForm(true)">Batal</button>
+            <button class="danger-button" :disabled="saving || !privilegeEditMode" @click="removePrivilege">Hapus</button>
           </div>
         </div>
 
@@ -501,6 +578,21 @@ onMounted(() => {
           </div>
         </div>
       </div>
+
+      <!-- ======================== CONFIRM MODAL ======================== -->
+      <div v-if="showConfirm" class="confirm-overlay" @click.self="cancelConfirm">
+        <div class="confirm-box">
+          <div class="confirm-icon">🗑️</div>
+          <h3>{{ confirmTitle }}</h3>
+          <p>{{ confirmMessage }}</p>
+          <div class="confirm-actions">
+            <button class="secondary-button" type="button" @click="cancelConfirm">Batal</button>
+            <button class="danger-button" type="button" :disabled="saving" @click="runConfirm">
+              {{ saving ? 'Menghapus...' : 'Ya, Hapus' }}
+            </button>
+          </div>
+        </div>
+      </div>
     </template>
   </div>
 </template>
@@ -513,9 +605,95 @@ onMounted(() => {
 
 .loading { padding: 24px; text-align: center; color: #9ca3af; }
 
-.status-banner { padding: 12px 16px; border-radius: 10px; font-weight: 600; margin-bottom: 12px; }
-.status-banner--success { background: #e6f5ea; color: #1d6b3a; }
-.status-banner--error { background: #fde8ea; color: #a32943; }
+/* Alerts */
+.alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 14px;
+  border: 1px solid transparent;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.07);
+  animation: alert-in 0.25s ease-out;
+}
+.alert--success {
+  background: linear-gradient(135deg, #e9f9ef, #d7f2e1);
+  color: #166534;
+  border-color: #b3e2c5;
+}
+.alert--error {
+  background: linear-gradient(135deg, #fdeeee, #fae0e2);
+  color: #9f1d2f;
+  border-color: #f2c0c6;
+}
+.alert-icon { font-size: 18px; line-height: 1; flex-shrink: 0; }
+.alert-text { flex: 1; }
+.alert-close {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: 6px;
+  opacity: 0.7;
+}
+.alert-close:hover { background: rgba(0, 0, 0, 0.08); opacity: 1; }
+
+@keyframes alert-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Confirm modal */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  animation: fade-in 0.2s ease-out;
+}
+.confirm-box {
+  background: #fff;
+  border-radius: 14px;
+  padding: 24px;
+  width: 420px;
+  max-width: 90vw;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  animation: pop-in 0.22s ease-out;
+}
+.confirm-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  background: #fdeeee;
+  color: #b84747;
+  border-radius: 50%;
+}
+.confirm-box h3 { margin: 0 0 8px; color: #304b73; font-size: 17px; }
+.confirm-box p { margin: 0 0 20px; color: #6b7280; font-size: 14px; }
+.confirm-actions { display: flex; gap: 10px; justify-content: center; }
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
 
 .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
 .card h3 { margin: 0 0 12px; font-size: 16px; color: #304b73; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
