@@ -12,6 +12,7 @@ import BatchTreatmentSection from './BatchTreatmentSection.vue';
 
 import BedDisplaySection from './BedDisplaySection.vue';
 import BedInfoSection from './BedInfoSection.vue';
+import BedMutationSection from './BedMutationSection.vue';
 import BedSection from './BedSection.vue';
 import CardTypeSection from './CardTypeSection.vue';
 import CoaSection from './CoaSection.vue';
@@ -144,6 +145,7 @@ const screenViewMap = {
   'SC0061': 'emergency',
   'SC0174': 'item-request',
   'SC0005': 'cari-pasien',
+  'SC0002': 'bed-mutation',
   'SC0031': 'ward',
   'SC0004': 'bed-transaction',
   'SC0121': 'item-mutation',
@@ -272,6 +274,7 @@ function screenIcon(screenCode) {
     'SC0061': '🚑',
     'SC0174': '📦',
     'SC0005': '🏥',
+    'SC0002': '🛏️',
     'SC0031': '🛏️',
     'SC0004': '🛌',
     'SC0121': '📦',
@@ -847,6 +850,13 @@ async function confirmChangePassword() {
 
       <WardSection
         v-else-if="selectedView === 'ward'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
+      <BedMutationSection
+        v-else-if="selectedView === 'bed-mutation'"
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"
         @close="navigate('overview')"
