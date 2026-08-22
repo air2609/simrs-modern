@@ -12,6 +12,7 @@ public class WardLineRequest {
     private String discType;
     private Double discAmount;
     private Integer doctorId;
+    private Integer radiograferId;
     private String miscName;
 
     public String getLineType() {
@@ -68,6 +69,14 @@ public class WardLineRequest {
 
     public void setDoctorId(Integer doctorId) {
         this.doctorId = doctorId;
+    }
+
+    public Integer getRadiograferId() {
+        return radiograferId;
+    }
+
+    public void setRadiograferId(Integer radiograferId) {
+        this.radiograferId = radiograferId;
     }
 
     public String getMiscName() {

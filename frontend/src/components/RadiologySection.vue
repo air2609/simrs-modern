@@ -44,6 +44,9 @@ const noteSearch = ref({ noteNo: '', name: '' });
 const noteResults = ref([]);
 const doctorSearch = ref({ code: '', name: '' });
 const doctorResults = ref([]);
+const radiographers = ref([]);
+const treatmentDoctor = ref(null);
+const treatmentRadiograferId = ref(null);
 const treatmentSearch = ref({ code: '', name: '' });
 const treatmentResults = ref([]);
 const itemSearch = ref({ code: '', name: '' });
@@ -297,6 +300,34 @@ function selectDoctor(result) {
   showModal.value = '';
 }
 
+// ================= TAMBAH TINDAKAN (DOKTER PEMERIKSA & RADIOGRAFER) =================
+
+async function openTreatmentModal() {
+  treatmentDoctor.value = null;
+  treatmentRadiograferId.value = null;
+  treatmentSearch.value = { code: '', name: '' };
+  treatmentResults.value = [];
+  if (!radiographers.value.length) {
+    try {
+      radiographers.value = await request('/radiology/radiographers');
+    } catch (requestError) {
+      error.value = requestError.message;
+    }
+  }
+  showModal.value = 'treatment';
+}
+
+function openTreatmentDoctorSearch() {
+  doctorSearch.value = { code: '', name: '' };
+  doctorResults.value = [];
+  showModal.value = 'doctor';
+}
+
+function selectTreatmentDoctor(result) {
+  treatmentDoctor.value = result;
+  showModal.value = 'treatment';
+}
+
 async function searchTreatment() {
   const s = treatmentSearch.value;
   if (!s.code && !s.name) {
@@ -315,17 +346,26 @@ async function searchTreatment() {
 }
 
 function addTreatment(result) {
+  const doctor = treatmentDoctor.value;
+  const radiografer = radiographers.value.find(
+    (r) => r.staffId === Number(treatmentRadiograferId.value)
+  );
+  let name = result.name;
+  // migrasi legacy: keterangan = nama tindakan - dokter pemeriksa - radiografer
+  if (doctor) name = `${name}-${doctor.name}`;
+  if (radiografer) name = `${name}-${radiografer.name}`;
   addLine({
     lineType: 'TREATMENT',
     referenceId: result.treatmentFeeId,
     code: result.code,
-    name: result.name,
+    name,
     qty: 1,
     unit: '-',
     price: result.price,
     discType: 'RP',
     discAmount: 0,
-    doctorId: null
+    doctorId: doctor ? doctor.staffId : null,
+    radiograferId: radiografer ? radiografer.staffId : null
   });
   calculateTotal();
 }
@@ -439,6 +479,7 @@ async function save() {
       discType: line.discType,
       discAmount: line.discAmount,
       doctorId: line.doctorId,
+      radiograferId: line.radiograferId,
       miscName: line.lineType === 'MISC' ? line.name : undefined
     }))
   });
@@ -690,7 +731,7 @@ function historySubtotal() {
         <div class="action-bar">
           <button class="small-button" type="button" :disabled="readOnly && !editMode" @click="calculateTotal">🧮 HITUNG</button>
           <button class="small-button" type="button" :disabled="readOnly && !editMode" @click="deleteSelectedLine">🗑️ HAPUS</button>
-          <button class="small-button primary" type="button" :disabled="readOnly && !editMode" @click="showModal = 'treatment'">➕ TAMBAH TINDAKAN</button>
+          <button class="small-button primary" type="button" :disabled="readOnly && !editMode" @click="openTreatmentModal">➕ TAMBAH TINDAKAN</button>
           <button class="small-button primary" type="button" :disabled="readOnly && !editMode" @click="showModal = 'item'">💊 TAMBAH O-BM</button>
           <button class="small-button primary" type="button" :disabled="readOnly && !editMode" @click="showModal = 'misc'">💲 BIAYA LAIN-LAIN</button>
         </div>
@@ -827,6 +868,26 @@ function historySubtotal() {
       <div class="modal">
         <div class="modal-header">FORM TAMBAH TINDAKAN</div>
         <div class="modal-body">
+          <div class="field">
+            <label>DOKTER PEMERIKSA</label>
+            <div class="input-row">
+              <input
+                :value="treatmentDoctor ? `${treatmentDoctor.code}-${treatmentDoctor.name}` : ''"
+                readonly
+                placeholder="-"
+              />
+              <button class="mini primary" type="button" @click="openTreatmentDoctorSearch">CARI</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>RADIOGRAFER</label>
+            <select v-model="treatmentRadiograferId">
+              <option :value="null">--PILIH--</option>
+              <option v-for="r in radiographers" :key="r.staffId" :value="r.staffId">
+                {{ r.code }} - {{ r.name }}
+              </option>
+            </select>
+          </div>
           <div class="field"><label>KODE</label><input v-model="treatmentSearch.code" /></div>
           <div class="field"><label>NAMA</label><input v-model="treatmentSearch.name" /></div>
           <button class="small-button primary" type="button" :disabled="loading" @click="searchTreatment">🔍 CARI</button>
@@ -845,6 +906,32 @@ function historySubtotal() {
         </div>
         <div class="modal-footer">
           <button class="small-button" type="button" @click="showModal = ''">SELESAI</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== MODAL: CARI DOKTER (DOKTER PEMERIKSA) ==================== -->
+    <div v-if="showModal === 'doctor'" class="modal-overlay" @click.self="showModal = 'treatment'">
+      <div class="modal">
+        <div class="modal-header">PENCARIAN DATA DOKTER</div>
+        <div class="modal-body">
+          <div class="field"><label>KODE</label><input v-model="doctorSearch.code" @keyup.enter="searchDoctor" /></div>
+          <div class="field"><label>NAMA</label><input v-model="doctorSearch.name" @keyup.enter="searchDoctor" /></div>
+          <button class="small-button primary" type="button" :disabled="loading" @click="searchDoctor">🔍 CARI</button>
+          <div class="table-wrap modal-list">
+            <table class="table">
+              <thead><tr><th>KODE</th><th>NAMA</th></tr></thead>
+              <tbody>
+                <tr v-for="r in doctorResults" :key="r.staffId" @click="selectTreatmentDoctor(r)">
+                  <td class="strong">{{ r.code }}</td>
+                  <td>{{ r.name }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="small-button" type="button" @click="showModal = 'treatment'">TUTUP</button>
         </div>
       </div>
     </div>

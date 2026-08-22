@@ -46,6 +46,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class RadiologyService {
 
     private static final int DOCTOR_GROUP = 4;
+    private static final int RADIOGRAPHER_GROUP = 10;
     private static final int REG_ACTIVE = 1;
     private static final short NOTE_ACTIVE = 1;
     private static final short NOTE_VALIDATED = 2;
@@ -254,6 +255,25 @@ public class RadiologyService {
                 like(normalizeOptionalUpper(name)));
     }
 
+    /**
+     * Daftar radiografer untuk pilihan pada form TAMBAH TINDAKAN. Migrasi dari
+     * legacy {@code RadiologyDAO.getMedician("RADIOGRAFER")} — ms_doctor dengan
+     * grup RADIOGRAFER (n_msgroup_id = 10).
+     */
+    public List<WardDoctorOptionResponse> searchRadiographers() {
+        return jdbcTemplate.query(
+                "select st.n_staff_id, st.v_staff_code, st.v_staff_name "
+                        + "from ms_doctor dr "
+                        + "join ms_staff st on st.n_staff_id = dr.n_staff_id "
+                        + "where dr.n_msgroup_id = ? and st.d_staff_fired_date is null "
+                        + "order by st.v_staff_name",
+                (resultSet, rowNum) -> new WardDoctorOptionResponse(
+                        resultSet.getInt("n_staff_id"),
+                        resultSet.getString("v_staff_code"),
+                        resultSet.getString("v_staff_name")),
+                RADIOGRAPHER_GROUP);
+    }
+
     public List<WardTreatmentOptionResponse> searchTreatments(String code, String name,
             String tariffClass) {
         String effectiveClass = hasText(tariffClass)
@@ -439,21 +459,26 @@ public class RadiologyService {
                 "select trx.n_treatment_fee_id, treat.v_treatment_code, "
                         + "treat.v_treatment_name, trx.n_qty, trx.n_amount_trx, "
                         + "trx.n_disc_amount, trx.v_disc_type, trx.n_amount_after_disc, "
-                        + "trx.n_doctor_id, tfee.n_doctor_fee, st.v_staff_name "
+                        + "trx.n_doctor_id, trx.n_anesthacy_id, tfee.n_doctor_fee, "
+                        + "st.v_staff_name, rg.v_staff_name as radiografer_name "
                         + "from tb_treatment_trx trx "
                         + "join ms_treatment_fee tfee on tfee.n_treatment_fee_id = trx.n_treatment_fee_id "
                         + "join ms_treatment treat on treat.n_treatment_id = tfee.n_treatment_id "
                         + "left join ms_staff st on st.n_staff_id = trx.n_doctor_id "
+                        + "left join ms_staff rg on rg.n_staff_id = trx.n_anesthacy_id "
                         + "where trx.n_note_id = ? order by trx.n_treatment_id",
                 (resultSet, rowNum) -> {
                     double qty = nvlDouble(resultSet.getObject("n_qty"), 1);
                     double amountTrx = nvlDouble(resultSet.getObject("n_amount_trx"), 0);
                     String name = resultSet.getString("v_treatment_name");
-                    double doctorFee = nvlDouble(resultSet.getObject("n_doctor_fee"), 0);
                     String doctorName = resultSet.getString("v_staff_name");
-                    if (resultSet.getObject("n_doctor_id") != null && doctorFee > 0
-                            && doctorName != null) {
+                    String radiograferName = resultSet.getString("radiografer_name");
+                    // migrasi legacy: keterangan = nama tindakan - dokter pemeriksa - radiografer
+                    if (resultSet.getObject("n_doctor_id") != null && doctorName != null) {
                         name = name + "-" + doctorName;
+                    }
+                    if (resultSet.getObject("n_anesthacy_id") != null && radiograferName != null) {
+                        name = name + "-" + radiograferName;
                     }
                     return new WardNoteLineResponse(
                             LINE_TREATMENT,
@@ -463,7 +488,8 @@ public class RadiologyService {
                             resultSet.getString("v_disc_type"),
                             toDouble(resultSet.getObject("n_disc_amount")),
                             toDouble(resultSet.getObject("n_amount_after_disc")),
-                            getNullableInteger(resultSet, "n_doctor_id"));
+                            getNullableInteger(resultSet, "n_doctor_id"),
+                            getNullableInteger(resultSet, "n_anesthacy_id"));
                 },
                 noteId));
         lines.addAll(jdbcTemplate.query(
@@ -588,11 +614,11 @@ public class RadiologyService {
         jdbcTemplate.update(
                 "insert into tb_treatment_trx (n_note_id, n_treatment_fee_id, n_qty, "
                         + "n_amount_trx, n_disc_amount, v_disc_type, n_amount_after_disc, "
-                        + "n_doctor_id, d_whn_create, v_who_create) "
-                        + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        + "n_doctor_id, n_anesthacy_id, d_whn_create, v_who_create) "
+                        + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 noteId, line.getReferenceId(), (short) qty, amountBefore, discAmount,
                 normalizeDiscountType(line.getDiscType()), amountBefore - discAmount,
-                line.getDoctorId(), now, username);
+                line.getDoctorId(), line.getRadiograferId(), now, username);
     }
 
     private void saveItemLine(Integer noteId, WardLineRequest line, UnitRow unit, String username,

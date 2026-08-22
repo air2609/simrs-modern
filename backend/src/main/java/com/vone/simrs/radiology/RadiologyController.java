@@ -76,6 +76,12 @@ public class RadiologyController {
         return ApiResponse.ok(radiologyService.searchDoctors(code, name));
     }
 
+    @GetMapping("/radiographers")
+    public ApiResponse<List<WardDoctorOptionResponse>> radiographers(HttpServletRequest request) {
+        ensureAuthenticated(request.getSession(false));
+        return ApiResponse.ok(radiologyService.searchRadiographers());
+    }
+
     @GetMapping("/treatments")
     public ApiResponse<List<WardTreatmentOptionResponse>> treatments(
             @RequestParam(required = false) String code,

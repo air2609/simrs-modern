@@ -17,10 +17,18 @@ public class WardNoteLineResponse {
     private final Double discAmount;
     private final Double subtotal;
     private final Integer doctorId;
+    private final Integer radiograferId;
 
     public WardNoteLineResponse(String lineType, Integer referenceId, String code, String name,
             Double qty, String unit, Double price, String discType, Double discAmount,
             Double subtotal, Integer doctorId) {
+        this(lineType, referenceId, code, name, qty, unit, price, discType, discAmount,
+                subtotal, doctorId, null);
+    }
+
+    public WardNoteLineResponse(String lineType, Integer referenceId, String code, String name,
+            Double qty, String unit, Double price, String discType, Double discAmount,
+            Double subtotal, Integer doctorId, Integer radiograferId) {
         this.lineType = lineType;
         this.referenceId = referenceId;
         this.code = code;
@@ -32,6 +40,7 @@ public class WardNoteLineResponse {
         this.discAmount = discAmount;
         this.subtotal = subtotal;
         this.doctorId = doctorId;
+        this.radiograferId = radiograferId;
     }
 
     public String getLineType() {
@@ -76,5 +85,9 @@ public class WardNoteLineResponse {
 
     public Integer getDoctorId() {
         return doctorId;
+    }
+
+    public Integer getRadiograferId() {
+        return radiograferId;
     }
 }
