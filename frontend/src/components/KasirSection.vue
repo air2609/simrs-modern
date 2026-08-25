@@ -39,6 +39,13 @@ const showNoteModal = ref(false);
 const noteSearch = ref({ noteNo: '', name: '' });
 const noteResults = ref([]);
 
+// cari kwitansi (re-print)
+const showBillModal = ref(false);
+const billSearch = ref({ code: '', nameOnBill: '' });
+const billResults = ref([]);
+const loadedNoteNos = ref('');
+const billTotalPaid = ref(null);
+
 // tab CARA PEMBAYARAN
 const bankPay = ref({ type: 'creditcard', bankId: null, cardType: 'visa', accountNo: '', amount: null });
 const insurancePay = ref({ insuranceId: null, amount: null });
@@ -80,6 +87,42 @@ const dialogIcon = computed(() => ({
 }[dialog.value.type] || 'ℹ️'));
 
 const fmtMoney = (v) => Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+// ================= FORMAT RIBUAN (input tunai / deposit) =================
+// Tampilkan angka dengan pemisah ribuan titik (format Indonesia): 12000 -> 12.000
+function formatThousands(value) {
+  if (value === null || value === undefined || value === '') return '';
+  const num = Number(value);
+  if (!isFinite(num)) return '';
+  let [intStr, decStr] = String(num).split('.');
+  const formatted = (intStr || '0').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  if (decStr !== undefined) {
+    decStr = decStr.slice(0, 2);
+    return `${formatted},${decStr}`;
+  }
+  return formatted;
+}
+
+// Ubah teks input menjadi angka. Pemisah terakhir dengan <= 2 digit dianggap
+// pemisah desimal, selain itu dianggap pemisah ribuan (dibuang semua).
+function parseThousands(text) {
+  if (text === null || text === undefined) return null;
+  let s = String(text).trim();
+  if (!s) return null;
+  const lastIdx = Math.max(s.lastIndexOf('.'), s.lastIndexOf(','));
+  if (lastIdx >= 0) {
+    const after = s.slice(lastIdx + 1).replace(/\D/g, '');
+    if (after.length <= 2) {
+      const intPart = s.slice(0, lastIdx).replace(/\D/g, '');
+      const num = Number(`${intPart || '0'}.${after || '0'}`);
+      return isFinite(num) ? num : null;
+    }
+  }
+  const digits = s.replace(/\D/g, '');
+  if (!digits) return null;
+  const num = parseInt(digits, 10);
+  return isFinite(num) ? num : null;
+}
 
 async function request(path, options = {}) {
   const response = await fetch(`${props.apiBaseUrl}${path}`, {
@@ -149,10 +192,30 @@ async function selectPatient(result) {
     form.value.nameOnBill = patient.value.patientName;
     form.value.addrOnBill = patient.value.address || '';
     depositBalance.value = patient.value.depositBalance || 0;
+    // ambil semua nota yang sudah divalidasi & belum lunas milik pasien ini,
+    // lalu tampilkan langsung di DATA TRANSAKSI PASIEN (migrasi legacy getRegistration + getNoteDetil)
+    await autoLoadNotes();
   } catch (requestError) {
     error.value = requestError.message;
   } finally {
     loading.value = false;
+  }
+}
+
+async function autoLoadNotes() {
+  if (!patient.value || !patient.value.registrationId) {
+    notes.value = [];
+    lines.value = [];
+    return;
+  }
+  notes.value = await request(`/cashier/notes${qs({ registrationId: patient.value.registrationId })}`);
+  noteResults.value = notes.value.map((n) => ({ ...n }));
+  lines.value = [];
+  for (const note of notes.value) {
+    const noteLines = await request(`/cashier/notes/${note.noteId}/lines`);
+    noteLines.forEach((line) => {
+      lines.value.push({ ...line, noteNo: note.noteNo });
+    });
   }
 }
 
@@ -196,6 +259,60 @@ async function loadSelectedNotes() {
   showNoteModal.value = false;
 }
 
+// ================= CARI KWITANSI (RE-PRINT) =================
+
+async function searchBill() {
+  const s = billSearch.value;
+  if (!s.code && !s.nameOnBill) {
+    await showAlert('Salah satu field pencarian kwitansi harus diisi!');
+    return;
+  }
+  loading.value = true;
+  error.value = '';
+  try {
+    billResults.value = await request(`/cashier/bills${qs({ code: s.code, nameOnBill: s.nameOnBill })}`);
+  } catch (requestError) {
+    error.value = requestError.message;
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function selectBill(result) {
+  showBillModal.value = false;
+  loading.value = true;
+  error.value = '';
+  try {
+    const bill = await request(`/cashier/bills/${result.billId}`);
+    // tampilkan seluruh nota + baris transaksi di dalam kwitansi (untuk re-print)
+    form.value.mrCode = bill.mrCode || '';
+    form.value.patientName = bill.patientName || '';
+    form.value.address = bill.address || '';
+    form.value.patientTypeName = bill.patientTypeName || '';
+    form.value.bed = bill.bed || '';
+    form.value.nameOnBill = bill.nameOnBill || '';
+    form.value.addrOnBill = bill.addrOnBill || '';
+    form.value.cash = bill.cashAmount || 0;
+    form.value.deposit = bill.depositAmount || 0;
+    form.value.ppn = 0;
+    form.value.discount = bill.discount || 0;
+    form.value.discountType = 'RP';
+    depositBalance.value = bill.depositBalance || 0;
+    kwitansiCode.value = bill.billCode;
+    loadedNoteNos.value = bill.noteNos || '';
+    billTotalPaid.value = bill.totalPaid || null;
+    patient.value = null;
+    notes.value = [];
+    lines.value = bill.lines || [];
+    payLocked.value = true; // mode re-print: BAYAR dinonaktifkan
+    showToast(`Kwitansi ${bill.billCode} dimuat (${bill.lines ? bill.lines.length : 0} baris).`, 'info');
+  } catch (requestError) {
+    error.value = requestError.message;
+  } finally {
+    loading.value = false;
+  }
+}
+
 // ================= TOTAL =================
 
 const biaya = computed(() => lines.value.reduce((s, l) => s + (Number(l.subtotal) || 0), 0));
@@ -218,6 +335,17 @@ const paidTotal = computed(() => (Number(form.value.cash) || 0) + (Number(form.v
 const nonCash = computed(() => paymentTerms.value.reduce((s, t) => s + (Number(t.amount) || 0), 0));
 
 const difference = computed(() => paidTotal.value - totalAmount.value);
+
+// input BAYAR TUNAI / BAYAR DEPOSIT dengan pemisah ribuan otomatis
+const cashDisplay = computed({
+  get: () => formatThousands(form.value.cash),
+  set: (value) => { form.value.cash = parseThousands(value); }
+});
+
+const depositDisplay = computed({
+  get: () => formatThousands(form.value.deposit),
+  set: (value) => { form.value.deposit = parseThousands(value); }
+});
 
 function bankName(id) {
   return masters.value?.banks?.find((b) => b.bankId === id)?.name || '';
@@ -278,6 +406,8 @@ function clearAll() {
   notes.value = [];
   lines.value = [];
   kwitansiCode.value = '';
+  loadedNoteNos.value = '';
+  billTotalPaid.value = null;
   depositBalance.value = 0;
   paymentTerms.value = [];
   payLocked.value = false;
@@ -403,7 +533,10 @@ function printKwitansi() {
           </div>
           <div class="field">
             <label>NO. KWITANSI</label>
-            <input :value="kwitansiCode" readonly placeholder="-" />
+            <div class="input-row">
+              <input :value="kwitansiCode" readonly placeholder="-" />
+              <button class="mini primary" type="button" @click="showBillModal = true">CARI KWITANSI</button>
+            </div>
           </div>
           <div class="field">
             <label>JENIS TRANSAKSI</label>
@@ -416,7 +549,7 @@ function printKwitansi() {
           <div class="field">
             <label>NO. NOTA</label>
             <div class="input-row">
-              <input :value="notes.length ? notes.map(n => n.noteNo).join(', ') : ''" readonly placeholder="-" />
+              <input :value="notes.length ? notes.map(n => n.noteNo).join(', ') : loadedNoteNos" readonly placeholder="-" />
               <button class="mini primary" type="button" :disabled="payLocked" @click="showNoteModal = true">CARI NOTA</button>
             </div>
           </div>
@@ -494,11 +627,11 @@ function printKwitansi() {
               </select>
             </div>
           </div>
-          <div class="field"><label>TTL. BIAYA</label><input :value="fmtMoney(totalAmount)" readonly class="highlight" /></div>
+          <div class="field"><label>TTL. BIAYA</label><input :value="fmtMoney(billTotalPaid ?? totalAmount)" readonly class="highlight" /></div>
           <div class="field"><label>JUMLAH DEPOSIT</label><input :value="fmtMoney(depositBalance)" readonly /></div>
-          <div class="field"><label>BAYAR TUNAI</label><input v-model.number="form.cash" type="number" min="0" :disabled="payLocked" /></div>
+          <div class="field"><label>BAYAR TUNAI</label><input v-model="cashDisplay" type="text" inputmode="numeric" placeholder="0" :disabled="payLocked" /></div>
           <div class="field"><label>BAYAR NON TUNAI</label><input :value="fmtMoney(nonCash)" readonly /></div>
-          <div class="field"><label>BAYAR DEPOSIT</label><input v-model.number="form.deposit" type="number" min="0" :disabled="payLocked" /></div>
+          <div class="field"><label>BAYAR DEPOSIT</label><input v-model="depositDisplay" type="text" inputmode="numeric" placeholder="0" :disabled="payLocked" /></div>
           <div class="field"><label>KELEBIHAN / KEKURANGAN</label>
             <input :value="fmtMoney(difference)" readonly :class="difference < 0 ? 'highlight' : ''" />
           </div>
@@ -616,6 +749,30 @@ function printKwitansi() {
           </div>
         </div>
         <div class="modal-footer"><button class="small-button" type="button" @click="showNoteModal = false">TUTUP</button></div>
+      </div>
+    </div>
+
+    <!-- ==================== MODAL: CARI KWITANSI (RE-PRINT) ==================== -->
+    <div v-if="showBillModal" class="modal-overlay" @click.self="showBillModal = false">
+      <div class="modal">
+        <div class="modal-header">CARI KWITANSI</div>
+        <div class="modal-body">
+          <div class="field"><label>NO. KWITANSI</label><input v-model="billSearch.code" @keyup.enter="searchBill" /></div>
+          <div class="field"><label>NAMA</label><input v-model="billSearch.nameOnBill" @keyup.enter="searchBill" /></div>
+          <button class="small-button primary" type="button" :disabled="loading" @click="searchBill">🔍 CARI</button>
+          <div class="table-wrap modal-list">
+            <table class="table">
+              <thead><tr><th>NO. KWITANSI</th><th>NAMA</th><th>TANGGAL</th></tr></thead>
+              <tbody>
+                <tr v-for="r in billResults" :key="r.billId" @click="selectBill(r)">
+                  <td class="strong">{{ r.billCode }}</td><td>{{ r.nameOnBill }}</td><td>{{ r.date }}</td>
+                </tr>
+                <tr v-if="!billResults.length"><td colspan="3" class="empty-state">Tidak ada kwitansi ditemukan.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer"><button class="small-button" type="button" @click="showBillModal = false">TUTUP</button></div>
       </div>
     </div>
 

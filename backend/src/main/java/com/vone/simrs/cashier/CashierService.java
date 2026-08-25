@@ -32,6 +32,7 @@ public class CashierService {
     private static final short CASH_SETTLEMENT = 3;
     private static final short DEPOSIT_SETTLEMENT = 4;
     private static final DateTimeFormatter BILL_DATE = DateTimeFormatter.ofPattern("yyMM");
+    private static final DateTimeFormatter DISPLAY_DATE_TIME = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
 
     private final JdbcTemplate jdbcTemplate;
     private final LegacyAuthService legacyAuthService;
@@ -182,8 +183,10 @@ public class CashierService {
 
     // ------------------------------------------------------------------ nota
 
-    /** Cari nota BELUM LUNAS (validated) untuk pembayaran. */
-    public List<CashierNoteResponse> searchNotes(Integer unitId, String noteNo, String patientName) {
+    /** Cari nota BELUM LUNAS (validated) untuk pembayaran. Migrasi dari
+     * {@code CashierDAO.getNotes(TbRegistration)} — filter registrasi aktif. */
+    public List<CashierNoteResponse> searchNotes(Integer unitId, Integer registrationId,
+            String noteNo, String patientName) {
         StringBuilder sql = new StringBuilder();
         sql.append("select note.n_exam_id, note.v_note_no, note.n_exam_status, ")
                 .append("note.n_total_amount, note.d_whn_create, pat.v_patient_name ")
@@ -196,6 +199,10 @@ public class CashierService {
         params.add((int) NOTE_VALIDATED);
         params.add(like(normalizeOptionalUpper(noteNo)));
         params.add(like(normalizeOptionalUpper(patientName)));
+        if (registrationId != null) {
+            sql.append("and note.n_reg_id = ? ");
+            params.add(registrationId);
+        }
         if (unitId != null) {
             sql.append("and note.n_unit_id = ? ");
             params.add(unitId);
@@ -283,6 +290,176 @@ public class CashierService {
     }
 
     // ------------------------------------------------------------------ bayar
+
+    /**
+     * Cari kwitansi (tb_patient_bill) untuk keperluan re-print. Migrasi dari
+     * legacy {@code CashierManagerImpl.getPatientBills()} +
+     * {@code CashierDAO.getPatientBill()} (status BELUM_LUNAS = 0).
+     */
+    public List<CashierBillSearchResponse> searchBills(String code, String nameOnBill) {
+        return jdbcTemplate.query(
+                "select n_pbill_id, v_pbill_code, v_name_on_bill, d_whn_create "
+                        + "from tb_patient_bill "
+                        + "where v_pbill_code like ? and v_name_on_bill like ? "
+                        + "and n_payment_status = ? "
+                        + "order by d_whn_create desc limit 100",
+                (resultSet, rowNum) -> new CashierBillSearchResponse(
+                        resultSet.getInt("n_pbill_id"),
+                        resultSet.getString("v_pbill_code"),
+                        resultSet.getString("v_name_on_bill"),
+                        toIsoDateTime(resultSet.getTimestamp("d_whn_create"))),
+                like(normalizeOptionalUpper(code)),
+                like(normalizeOptionalUpper(nameOnBill)),
+                (int) BELUM_LUNAS);
+    }
+
+    /**
+     * Detail kwitansi berdasarkan nomor kwitansi (untuk cetak ulang).
+     */
+    public CashierBillDetailResponse getBillDetailByCode(String kwitansiCode) {
+        Integer billId = findBillIdByCode(kwitansiCode);
+        if (billId == null) {
+            throw new IllegalArgumentException("Kwitansi tidak ditemukan!");
+        }
+        return getBillDetail(billId);
+    }
+
+    private Integer findBillIdByCode(String kwitansiCode) {
+        List<Integer> rows = jdbcTemplate.query(
+                "select n_pbill_id from tb_patient_bill where v_pbill_code = ?",
+                (resultSet, rowNum) -> resultSet.getInt("n_pbill_id"),
+                kwitansiCode);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    /**
+     * Detail kwitansi: header + settlement + seluruh nota & barisnya + data
+     * pasien. Migrasi dari legacy {@code CashierManagerImpl.getBillDetil()}.
+     */
+    public CashierBillDetailResponse getBillDetail(Integer billId) {
+        BillRow bill = findBill(billId);
+        List<NoteRow> notes = jdbcTemplate.query(
+                "select n_exam_id, v_note_no, n_total_amount from tb_examination "
+                        + "where n_pbill_id = ? order by d_whn_create, n_exam_id",
+                (resultSet, rowNum) -> new NoteRow(
+                        resultSet.getInt("n_exam_id"),
+                        resultSet.getString("v_note_no"),
+                        toDouble(resultSet.getObject("n_total_amount"))),
+                billId);
+
+        StringBuilder noteNos = new StringBuilder();
+        for (NoteRow note : notes) {
+            if (noteNos.length() > 0) {
+                noteNos.append(";");
+            }
+            noteNos.append(note.noteNo);
+        }
+
+        List<CashierNoteLineResponse> lines = new ArrayList<>();
+        for (NoteRow note : notes) {
+            for (CashierNoteLineResponse line : getNoteLines(note.noteId)) {
+                lines.add(new CashierNoteLineResponse(
+                        line.getNoteId(), note.noteNo, line.getCode(), line.getName(),
+                        line.getQty(), line.getUnit(), line.getPrice(),
+                        line.getDiscount(), line.getSubtotal()));
+            }
+        }
+
+        double cash = 0;
+        double deposit = 0;
+        double nonCash = 0;
+        for (SettlementRow settlement : findSettlements(billId)) {
+            if (settlement.type == CASH_SETTLEMENT) {
+                cash += settlement.amount;
+            } else if (settlement.type == DEPOSIT_SETTLEMENT) {
+                deposit += settlement.amount;
+            } else {
+                nonCash += settlement.amount;
+            }
+        }
+
+        String mrCode = "";
+        String patientName = "";
+        String patientTypeName = "";
+        String address = "";
+        String bed = "";
+        Double depositBalance = 0.0;
+        if (bill.regId != null) {
+            BillPatientRow patient = findBillPatient(bill.regId);
+            if (patient != null) {
+                mrCode = patient.mrCode;
+                patientName = patient.patientName;
+                patientTypeName = patient.patientTypeName;
+                address = patient.address;
+                if (patient.regNo != null && patient.regNo.startsWith("I")) {
+                    bed = findBedByRegId(bill.regId);
+                    depositBalance = findDepositBalance(bill.regId);
+                }
+            }
+        }
+
+        return new CashierBillDetailResponse(
+                bill.billId, bill.billCode,
+                bill.dWhnCreate == null ? "" : bill.dWhnCreate.toLocalDateTime().format(DISPLAY_DATE_TIME),
+                bill.nameOnBill, bill.addrOnBill,
+                bill.subTotal, bill.totalPaid, bill.discount, bill.tax,
+                cash, deposit, nonCash,
+                mrCode, patientName, patientTypeName, address, bed, depositBalance,
+                noteNos.toString(), lines);
+    }
+
+    private BillRow findBill(Integer billId) {
+        try {
+            return jdbcTemplate.queryForObject(
+                    "select n_pbill_id, v_pbill_code, v_name_on_bill, v_addr_on_bill, "
+                            + "n_pbill_sub_ttl, n_pbill_ttl_paid, n_pbill_disc, n_pbill_tax, "
+                            + "n_reg_id, d_whn_create from tb_patient_bill where n_pbill_id = ?",
+                    (resultSet, rowNum) -> new BillRow(
+                            resultSet.getInt("n_pbill_id"),
+                            resultSet.getString("v_pbill_code"),
+                            resultSet.getString("v_name_on_bill"),
+                            resultSet.getString("v_addr_on_bill"),
+                            toDouble(resultSet.getObject("n_pbill_sub_ttl")),
+                            toDouble(resultSet.getObject("n_pbill_ttl_paid")),
+                            toDouble(resultSet.getObject("n_pbill_disc")),
+                            toDouble(resultSet.getObject("n_pbill_tax")),
+                            getNullableInteger(resultSet, "n_reg_id"),
+                            resultSet.getTimestamp("d_whn_create")),
+                    billId);
+        } catch (EmptyResultDataAccessException e) {
+            throw new IllegalArgumentException("KWITANSI TIDAK DITEMUKAN!");
+        }
+    }
+
+    private List<SettlementRow> findSettlements(Integer billId) {
+        return jdbcTemplate.query(
+                "select n_psettlement_type, coalesce(sum(n_amount_settled), 0) as total "
+                        + "from tb_patient_settlement where n_pbill_id = ? "
+                        + "group by n_psettlement_type",
+                (resultSet, rowNum) -> new SettlementRow(
+                        resultSet.getInt("n_psettlement_type"),
+                        toDouble(resultSet.getObject("total"))),
+                billId);
+    }
+
+    private BillPatientRow findBillPatient(Integer regId) {
+        List<BillPatientRow> rows = jdbcTemplate.query(
+                "select mr.v_mr_code, pat.v_patient_name, pt.v_tpatient_desc, "
+                        + "pat.v_patient_main_addr, reg.v_reg_secondary_id "
+                        + "from tb_registration reg "
+                        + "join tb_medical_record mr on mr.n_mr_id = reg.n_mr_id "
+                        + "join ms_patient pat on pat.n_patient_id = mr.n_patient_id "
+                        + "left join ms_patient_type pt on pt.n_patient_type_id = pat.n_patient_type_id "
+                        + "where reg.n_reg_id = ?",
+                (resultSet, rowNum) -> new BillPatientRow(
+                        resultSet.getString("v_mr_code"),
+                        resultSet.getString("v_patient_name"),
+                        resultSet.getString("v_tpatient_desc"),
+                        resultSet.getString("v_patient_main_addr"),
+                        resultSet.getString("v_reg_secondary_id")),
+                regId);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
 
     /**
      * Pelunasan nota. Migrasi dari {@code CashierController.doSave()} +
@@ -580,6 +757,73 @@ public class CashierService {
 
         private RegistrationRow(int regId, String regNo) {
             this.regId = regId;
+            this.regNo = regNo;
+        }
+    }
+
+    private static final class BillRow {
+        private final int billId;
+        private final String billCode;
+        private final String nameOnBill;
+        private final String addrOnBill;
+        private final double subTotal;
+        private final double totalPaid;
+        private final double discount;
+        private final double tax;
+        private final Integer regId;
+        private final Timestamp dWhnCreate;
+
+        private BillRow(int billId, String billCode, String nameOnBill, String addrOnBill,
+                double subTotal, double totalPaid, double discount, double tax, Integer regId,
+                Timestamp dWhnCreate) {
+            this.billId = billId;
+            this.billCode = billCode;
+            this.nameOnBill = nameOnBill;
+            this.addrOnBill = addrOnBill;
+            this.subTotal = subTotal;
+            this.totalPaid = totalPaid;
+            this.discount = discount;
+            this.tax = tax;
+            this.regId = regId;
+            this.dWhnCreate = dWhnCreate;
+        }
+    }
+
+    private static final class SettlementRow {
+        private final int type;
+        private final double amount;
+
+        private SettlementRow(int type, double amount) {
+            this.type = type;
+            this.amount = amount;
+        }
+    }
+
+    private static final class NoteRow {
+        private final int noteId;
+        private final String noteNo;
+        private final double total;
+
+        private NoteRow(int noteId, String noteNo, double total) {
+            this.noteId = noteId;
+            this.noteNo = noteNo;
+            this.total = total;
+        }
+    }
+
+    private static final class BillPatientRow {
+        private final String mrCode;
+        private final String patientName;
+        private final String patientTypeName;
+        private final String address;
+        private final String regNo;
+
+        private BillPatientRow(String mrCode, String patientName, String patientTypeName,
+                String address, String regNo) {
+            this.mrCode = mrCode;
+            this.patientName = patientName;
+            this.patientTypeName = patientTypeName;
+            this.address = address;
             this.regNo = regNo;
         }
     }
