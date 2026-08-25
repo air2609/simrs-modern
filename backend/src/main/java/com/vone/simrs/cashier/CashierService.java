@@ -183,9 +183,10 @@ public class CashierService {
 
     // ------------------------------------------------------------------ nota
 
-    /** Cari nota BELUM LUNAS (validated) untuk pembayaran. Migrasi dari
-     * {@code CashierDAO.getNotes(TbRegistration)} — filter registrasi aktif. */
-    public List<CashierNoteResponse> searchNotes(Integer unitId, Integer registrationId,
+    /** Cari nota BELUM LUNAS (validated) untuk pembayaran — seluruh unit.
+     * Migrasi dari {@code CashierDAO.getNotes(TbRegistration)} — tanpa filter
+     * unit, karena kasir menerima pembayaran nota dari semua unit. */
+    public List<CashierNoteResponse> searchNotes(Integer registrationId,
             String noteNo, String patientName) {
         StringBuilder sql = new StringBuilder();
         sql.append("select note.n_exam_id, note.v_note_no, note.n_exam_status, ")
@@ -202,10 +203,6 @@ public class CashierService {
         if (registrationId != null) {
             sql.append("and note.n_reg_id = ? ");
             params.add(registrationId);
-        }
-        if (unitId != null) {
-            sql.append("and note.n_unit_id = ? ");
-            params.add(unitId);
         }
         sql.append("order by note.d_whn_create desc limit 100");
         return jdbcTemplate.query(sql.toString(), params.toArray(),

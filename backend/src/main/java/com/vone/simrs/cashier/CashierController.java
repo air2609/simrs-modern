@@ -55,13 +55,12 @@ public class CashierController {
 
     @GetMapping("/notes")
     public ApiResponse<List<CashierNoteResponse>> notes(
-            @RequestParam(required = false) Integer unitId,
             @RequestParam(required = false) Integer registrationId,
             @RequestParam(required = false) String noteNo,
             @RequestParam(required = false) String patientName,
             HttpServletRequest request) {
         ensureAuthenticated(request.getSession(false));
-        return ApiResponse.ok(cashierService.searchNotes(unitId, registrationId, noteNo, patientName));
+        return ApiResponse.ok(cashierService.searchNotes(registrationId, noteNo, patientName));
     }
 
     @GetMapping("/notes/{noteId}/lines")

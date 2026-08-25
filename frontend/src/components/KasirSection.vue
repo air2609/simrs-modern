@@ -230,7 +230,7 @@ async function searchNote() {
   loading.value = true;
   error.value = '';
   try {
-    noteResults.value = await request(`/cashier/notes${qs({ unitId: form.value.unitId, noteNo: s.noteNo, patientName: s.name })}`);
+    noteResults.value = await request(`/cashier/notes${qs({ noteNo: s.noteNo, patientName: s.name })}`);
   } catch (requestError) {
     error.value = requestError.message;
   } finally {
