@@ -1100,7 +1100,9 @@ public class ApotikService {
             double discAmount = calculateDiscount(amountBeforeDisc, line.getDiscountType(), line.getDiscountValue());
             total += amountBeforeDisc - discAmount;
         }
-        return total;
+        // bulatkan ke 2 desimal agar nilai nota tidak menyimpan artefak
+        // floating point (mis. 2251.8374999999996)
+        return Math.round(total * 100.0) / 100.0;
     }
 
     private double calculateDiscount(double amount, String discType, Double discValue) {

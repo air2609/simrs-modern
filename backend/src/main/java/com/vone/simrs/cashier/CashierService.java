@@ -478,14 +478,17 @@ public class CashierService {
             Double noteTotal = findNoteTotal(noteId);
             total += noteTotal == null ? 0 : noteTotal;
         }
+        total = round2(total);
 
         double discount = request.getDiscount() == null ? 0 : request.getDiscount();
         double discountValue = "%".equals(request.getDiscountType())
                 ? total * discount / 100.0 : discount;
+        discountValue = round2(discountValue);
         double ppn = request.getPpn() == null ? 0 : request.getPpn();
         double base = total - discountValue;
         double tax = ppn > 0 ? base * ppn / 100.0 : 0;
-        double totalAmount = base + tax;
+        tax = round2(tax);
+        double totalAmount = round2(base + tax);
 
         String kwitansiCode = generateBillCode(now);
         jdbcTemplate.update(
@@ -669,6 +672,10 @@ public class CashierService {
                 (resultSet, rowNum) -> toDouble(resultSet.getObject("n_total_amount")),
                 noteId);
         return rows.isEmpty() ? 0.0 : rows.get(0);
+    }
+
+    private double round2(double value) {
+        return Math.round(value * 100.0) / 100.0;
     }
 
     private String generateBillCode(Timestamp now) {

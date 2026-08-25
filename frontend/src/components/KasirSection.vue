@@ -334,7 +334,10 @@ const paidTotal = computed(() => (Number(form.value.cash) || 0) + (Number(form.v
 // BAYAR NON TUNAI = nilai dari tab CARA PEMBAYARAN (kartu + asuransi)
 const nonCash = computed(() => paymentTerms.value.reduce((s, t) => s + (Number(t.amount) || 0), 0));
 
-const difference = computed(() => paidTotal.value - totalAmount.value);
+const difference = computed(() => {
+  // bulatkan ke 2 desimal agar aman dari artefak floating point (mis. 2251.8374999999996)
+  return Math.round((paidTotal.value - totalAmount.value) * 100) / 100;
+});
 
 // input BAYAR TUNAI / BAYAR DEPOSIT dengan pemisah ribuan otomatis
 const cashDisplay = computed({
@@ -460,7 +463,9 @@ async function pay() {
     await showAlert('PILIH NOTA TERLEBIH DAHULU!');
     return;
   }
-  if (difference.value > 0) {
+  // legacy: blokir hanya jika pembayaran KURANG (total - bayar > 0)
+  // modern: difference = bayar - total, jadi kurang = difference < 0
+  if (difference.value < 0) {
     await showAlert('PEMBAYARAN BELUM CUKUP!');
     return;
   }
