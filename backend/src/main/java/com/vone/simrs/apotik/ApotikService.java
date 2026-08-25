@@ -30,6 +30,7 @@ public class ApotikService {
     private static final int NOTE_ACTIVE = 1;
     private static final int NOTE_VALIDATED = 2;
     private static final int NOTE_CANCELED = 0;
+    private static final int BELUM_LUNAS = 0;
     private static final DateTimeFormatter NOTE_NUMBER_FORMAT = DateTimeFormatter.ofPattern("yyMM");
 
     private final JdbcTemplate jdbcTemplate;
@@ -313,10 +314,11 @@ public class ApotikService {
         double totalAmount = calculateTotalAmount(request.getLines());
 
         jdbcTemplate.update(
-            "insert into tb_examination (v_note_no, n_exam_status, d_whn_create, v_who_create, "
+            "insert into tb_examination (v_note_no, n_exam_status, n_payment_status, "
+                + "d_whn_create, v_who_create, "
                 + "n_unit_id, n_patient_id, n_reg_id, v_recipe_no, n_total_amount) "
-                + "values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            noteNumber, NOTE_ACTIVE, now, username,
+                + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            noteNumber, NOTE_ACTIVE, BELUM_LUNAS, now, username,
             request.getUnitId(), ctx.getPatientId(), ctx.getRegistrationId(),
             normalizeOptional(request.getReceiptNumber()), totalAmount
         );
@@ -367,9 +369,11 @@ public class ApotikService {
         // validasi hanya membuat journal entry dan mengubah status.
 
         jdbcTemplate.update(
-            "update tb_examination set n_exam_status = ?, d_whn_change = ?, v_who_change = ? "
+            "update tb_examination set n_exam_status = ?, "
+                + "n_payment_status = coalesce(n_payment_status, ?), "
+                + "d_whn_change = ?, v_who_change = ? "
                 + "where n_exam_id = ?",
-            NOTE_VALIDATED, now, username, noteId
+            NOTE_VALIDATED, BELUM_LUNAS, now, username, noteId
         );
 
         createApotikJournal(noteId, header, unit, now, username);

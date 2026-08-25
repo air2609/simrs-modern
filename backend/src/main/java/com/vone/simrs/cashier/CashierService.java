@@ -185,7 +185,8 @@ public class CashierService {
 
     /** Cari nota BELUM LUNAS (validated) untuk pembayaran — seluruh unit.
      * Migrasi dari {@code CashierDAO.getNotes(TbRegistration)} — tanpa filter
-     * unit, karena kasir menerima pembayaran nota dari semua unit. */
+     * unit, karena kasir menerima pembayaran nota dari semua unit.
+     */
     public List<CashierNoteResponse> searchNotes(Integer registrationId,
             String noteNo, String patientName) {
         StringBuilder sql = new StringBuilder();
