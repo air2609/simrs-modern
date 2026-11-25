@@ -91,6 +91,7 @@ import AntrianPerDokterSection from './AntrianPerDokterSection.vue';
 import EarningReportSection from './EarningReportSection.vue';
 import RoomSection from './RoomSection.vue';
 import ScreenMasterSection from './ScreenMasterSection.vue';
+import SatuSehatSection from './SatuSehatSection.vue';
 import StaffSection from './StaffSection.vue';
 import TrialBalanceSection from './TrialBalanceSection.vue';
 import TreatmentClassSection from './TreatmentClassSection.vue';
@@ -455,6 +456,11 @@ async function confirmChangePassword() {
         <div class="accordion-group">
           <div class="accordion-header static" @click="navigate('overview')">
             <span>🏠 Overview</span>
+          </div>
+        </div>
+        <div class="accordion-group">
+          <div class="accordion-header static" :class="{ expanded: selectedView === 'satusehat' }" @click="navigate('satusehat')">
+            <span>🔗 SatuSehat</span>
           </div>
         </div>
 
@@ -1128,10 +1134,14 @@ async function confirmChangePassword() {
       />
 
 
+      <SatuSehatSection
+        v-else-if="selectedView === 'satusehat'"
+        :api-base-url="apiBaseUrl"
+        @session-expired="emit('session-expired', $event)"
+        @close="navigate('overview')"
+      />
+
       <LocationMasterSection
-
-
-
         v-else
         :api-base-url="apiBaseUrl"
         @session-expired="emit('session-expired', $event)"

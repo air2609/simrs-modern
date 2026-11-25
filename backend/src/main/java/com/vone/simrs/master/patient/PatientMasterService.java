@@ -1,6 +1,7 @@
 package com.vone.simrs.master.patient;
 
 import com.vone.simrs.auth.LegacyAuthService;
+import com.vone.simrs.satusehat.SatuSehatOutboxService;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.LocalDate;
@@ -27,10 +28,13 @@ public class PatientMasterService {
 
     private final JdbcTemplate jdbcTemplate;
     private final LegacyAuthService legacyAuthService;
+    private final SatuSehatOutboxService satuSehatOutboxService;
 
-    public PatientMasterService(JdbcTemplate jdbcTemplate, LegacyAuthService legacyAuthService) {
+    public PatientMasterService(JdbcTemplate jdbcTemplate, LegacyAuthService legacyAuthService,
+            SatuSehatOutboxService satuSehatOutboxService) {
         this.jdbcTemplate = jdbcTemplate;
         this.legacyAuthService = legacyAuthService;
+        this.satuSehatOutboxService = satuSehatOutboxService;
     }
 
     public String requireUsername(HttpSession session) {
@@ -264,6 +268,12 @@ public class PatientMasterService {
                     "insert into tb_medical_record (n_mr_id, n_patient_id, v_mr_code, v_who_create, d_whn_create) "
                             + "values (?, ?, ?, ?, ?)",
                     medicalRecordId, patientId, mrCode, normalizedUser, now);
+        }
+
+        try {
+            satuSehatOutboxService.enqueue(SatuSehatOutboxService.JOB_PATIENT, mrCode, normalizedUser);
+        } catch (RuntimeException ignored) {
+            // jangan gagalkan penyimpanan pasien bila enqueue outbox bermasalah
         }
 
         return new PatientSaveResultResponse(modify,

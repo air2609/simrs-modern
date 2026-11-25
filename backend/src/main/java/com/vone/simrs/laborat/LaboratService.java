@@ -1,6 +1,7 @@
 package com.vone.simrs.laborat;
 
 import com.vone.simrs.auth.LegacyAuthService;
+import com.vone.simrs.satusehat.SatuSehatOutboxService;
 import com.vone.simrs.common.api.ApiResponse;
 import com.vone.simrs.accounting.JournalService;
 import java.math.BigDecimal;
@@ -33,11 +34,14 @@ public class LaboratService {
     private final JdbcTemplate jdbc;
     private final LegacyAuthService legacyAuthService;
     private final JournalService journalService;
+    private final SatuSehatOutboxService satuSehatOutboxService;
 
-    public LaboratService(JdbcTemplate jdbc, LegacyAuthService legacyAuthService, JournalService journalService) {
+    public LaboratService(JdbcTemplate jdbc, LegacyAuthService legacyAuthService, JournalService journalService,
+            SatuSehatOutboxService satuSehatOutboxService) {
         this.jdbc = jdbc;
         this.legacyAuthService = legacyAuthService;
         this.journalService = journalService;
+        this.satuSehatOutboxService = satuSehatOutboxService;
     }
 
     public String requireUsername(HttpSession session) {
@@ -475,6 +479,13 @@ public class LaboratService {
 
         double total = saveLines(noteId, req, actor, now);
         jdbc.update("update tb_examination set n_total_amount = ? where n_exam_id = ?", total, noteId);
+
+        try {
+            satuSehatOutboxService.enqueue(SatuSehatOutboxService.JOB_OBSERVATION,
+                    req.getRegistrationCode(), actor);
+        } catch (RuntimeException ignored) {
+            // jangan gagalkan penyimpanan hasil lab bila enqueue outbox bermasalah
+        }
 
         return new LaboratSaveResultResponse(noteId, noteNo, "Nota berhasil disimpan.");
     }

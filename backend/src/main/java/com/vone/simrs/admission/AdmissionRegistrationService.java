@@ -1,6 +1,7 @@
 package com.vone.simrs.admission;
 
 import com.vone.simrs.auth.AuthenticationRequiredException;
+import com.vone.simrs.satusehat.SatuSehatOutboxService;
 import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -33,19 +34,22 @@ public class AdmissionRegistrationService {
     private final String arCoaKey;
     private final String registrationCoaKey;
     private final String registrationCoaFallbackKey;
+    private final SatuSehatOutboxService satuSehatOutboxService;
 
     public AdmissionRegistrationService(
         JdbcTemplate jdbcTemplate,
         @Value("${app.admission.card-fee:0}") int cardFee,
         @Value("${app.admission.coa-ar-key:COA_INPATIENT_AR}") String arCoaKey,
         @Value("${app.admission.registration-coa-key:COA_ADM}") String registrationCoaKey,
-        @Value("${app.admission.registration-coa-fallback-key:COA_MISC_TRX}") String registrationCoaFallbackKey
+        @Value("${app.admission.registration-coa-fallback-key:COA_MISC_TRX}") String registrationCoaFallbackKey,
+        SatuSehatOutboxService satuSehatOutboxService
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.cardFee = cardFee;
         this.arCoaKey = arCoaKey;
         this.registrationCoaKey = registrationCoaKey;
         this.registrationCoaFallbackKey = registrationCoaFallbackKey;
+        this.satuSehatOutboxService = satuSehatOutboxService;
     }
 
     public String requireUsername(HttpSession session) {
@@ -390,6 +394,12 @@ public class AdmissionRegistrationService {
         }
 
         insertRegistrationJournals(noteNumber, registrationFee, cardFeeAmount, normalizedUsername, now, !existingPatient);
+
+        try {
+            satuSehatOutboxService.enqueue(SatuSehatOutboxService.JOB_ENCOUNTER, registrationCode, normalizedUsername);
+        } catch (RuntimeException ignored) {
+            // jangan gagalkan registrasi bila enqueue outbox bermasalah
+        }
 
         return new AdmissionRegistrationResultResponse(existingPatient, mrCode, registrationCode, noteNumber, normalizeUpper(request.getPatientName()));
     }

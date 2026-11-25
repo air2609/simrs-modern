@@ -7,6 +7,7 @@ import com.vone.simrs.apotik.ApotikSaveRequest;
 import com.vone.simrs.apotik.ApotikSaveResultResponse;
 import com.vone.simrs.apotik.ApotikService;
 import com.vone.simrs.auth.LegacyAuthService;
+import com.vone.simrs.satusehat.SatuSehatOutboxService;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -58,16 +59,19 @@ public class DiagnoseService {
     private final LegacyAuthService legacyAuthService;
     private final ApotikService apotikService;
     private final double pajakObatRajal;
+    private final SatuSehatOutboxService satuSehatOutboxService;
 
     public DiagnoseService(
             JdbcTemplate jdbcTemplate,
             LegacyAuthService legacyAuthService,
             ApotikService apotikService,
-            @Value("${app.pajak.obat-rajal:0.03}") double pajakObatRajal) {
+            @Value("${app.pajak.obat-rajal:0.03}") double pajakObatRajal,
+            SatuSehatOutboxService satuSehatOutboxService) {
         this.jdbcTemplate = jdbcTemplate;
         this.legacyAuthService = legacyAuthService;
         this.apotikService = apotikService;
         this.pajakObatRajal = pajakObatRajal;
+        this.satuSehatOutboxService = satuSehatOutboxService;
     }
 
     public String requireUsername(HttpSession session) {
@@ -348,6 +352,12 @@ public class DiagnoseService {
         }
 
         jdbcTemplate.update("update tb_registration set antrian_status = ? where n_reg_id = ?", 1, reg.regId);
+
+        try {
+            satuSehatOutboxService.enqueueByRegId(SatuSehatOutboxService.JOB_CONDITION, reg.regId, username);
+        } catch (RuntimeException ignored) {
+            // jangan gagalkan penyimpanan diagnosa bila enqueue outbox bermasalah
+        }
 
         return new DiagnoseSaveResultResponse(diagnoseId, noteId, noteNumber);
     }

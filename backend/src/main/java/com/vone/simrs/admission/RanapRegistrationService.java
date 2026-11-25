@@ -1,6 +1,7 @@
 package com.vone.simrs.admission;
 
 import com.vone.simrs.auth.LegacyAuthService;
+import com.vone.simrs.satusehat.SatuSehatOutboxService;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -34,10 +35,13 @@ public class RanapRegistrationService {
 
     private final JdbcTemplate jdbcTemplate;
     private final LegacyAuthService legacyAuthService;
+    private final SatuSehatOutboxService satuSehatOutboxService;
 
-    public RanapRegistrationService(JdbcTemplate jdbcTemplate, LegacyAuthService legacyAuthService) {
+    public RanapRegistrationService(JdbcTemplate jdbcTemplate, LegacyAuthService legacyAuthService,
+            SatuSehatOutboxService satuSehatOutboxService) {
         this.jdbcTemplate = jdbcTemplate;
         this.legacyAuthService = legacyAuthService;
+        this.satuSehatOutboxService = satuSehatOutboxService;
     }
 
     public String requireUsername(HttpSession session) {
@@ -307,6 +311,12 @@ public class RanapRegistrationService {
                 BED_TERPAKAI, request.getBedId());
 
         migrateObatRajal(oldReg, patient, regId, username, now);
+
+        try {
+            satuSehatOutboxService.enqueue(SatuSehatOutboxService.JOB_ENCOUNTER, regNo, username);
+        } catch (RuntimeException ignored) {
+            // jangan gagalkan registrasi rawat inap bila enqueue outbox bermasalah
+        }
 
         return new RanapSaveResultResponse(
                 true, "Pendaftaran rawat inap berhasil disimpan.", regNo,

@@ -66,3 +66,19 @@ app:
 
   pajak:
     obat-rajal: ${PAJAK_OBAT_RAJAL:0.03}
+
+satusehat:
+  auth-url: ${SATUSEHAT_AUTH_URL:https://api-satusehat-stg.dto.kemkes.go.id/oauth2/v1/accesstoken}
+  base-url: ${SATUSEHAT_BASE_URL:https://api-satusehat-stg.dto.kemkes.go.id/fhir-r4/v1}
+  client-id: ${SATUSEHAT_CLIENT_ID:vC7jHpiCq2KMRglHdcaKlzyAlN40iN9tdVJiGtqSB4gYAfxm}
+  client-secret: ${SATUSEHAT_CLIENT_SECRET:ACRcf5e8v5EXGXjgnNzYi1ClmotCbWipA5lHjLxyoSczxCnZixTMiQu8dejM905e}
+  organization-id: ${SATUSEHAT_ORGANIZATION_ID:02908c60-9bde-4ded-9dbc-53feada02972}
+  inpatient-location-id: ${SATUSEHAT_INPATIENT_LOCATION_ID:}
+  connect-timeout-ms: ${SATUSEHAT_CONNECT_TIMEOUT_MS:10000}
+  read-timeout-ms: ${SATUSEHAT_READ_TIMEOUT_MS:30000}
+  outbox:
+    enabled: ${SATUSEHAT_OUTBOX_ENABLED:true}
+    interval-ms: ${SATUSEHAT_OUTBOX_INTERVAL_MS:60000}
+    initial-delay-ms: ${SATUSEHAT_OUTBOX_INITIAL_DELAY_MS:30000}
+    batch-size: ${SATUSEHAT_OUTBOX_BATCH_SIZE:20}
+    max-attempts: ${SATUSEHAT_OUTBOX_MAX_ATTEMPTS:10}

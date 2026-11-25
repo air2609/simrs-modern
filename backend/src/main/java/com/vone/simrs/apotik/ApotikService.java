@@ -2,6 +2,7 @@ package com.vone.simrs.apotik;
 
 import com.vone.simrs.auth.AuthenticationRequiredException;
 import com.vone.simrs.auth.LegacyAuthService;
+import com.vone.simrs.satusehat.SatuSehatOutboxService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -36,14 +37,17 @@ public class ApotikService {
     private final JdbcTemplate jdbcTemplate;
     private final LegacyAuthService legacyAuthService;
     private final double pajakObatRajal;
+    private final SatuSehatOutboxService satuSehatOutboxService;
 
     public ApotikService(
             JdbcTemplate jdbcTemplate,
             LegacyAuthService legacyAuthService,
-            @Value("${app.pajak.obat-rajal:0.03}") double pajakObatRajal) {
+            @Value("${app.pajak.obat-rajal:0.03}") double pajakObatRajal,
+            SatuSehatOutboxService satuSehatOutboxService) {
         this.jdbcTemplate = jdbcTemplate;
         this.legacyAuthService = legacyAuthService;
         this.pajakObatRajal = pajakObatRajal;
+        this.satuSehatOutboxService = satuSehatOutboxService;
     }
 
     public String requireUsername(HttpSession session) {
@@ -327,6 +331,16 @@ public class ApotikService {
             "select currval('tb_examination_n_exam_id_seq')", Integer.class
         );
         saveNoteLines(noteId, request.getLines(), unit.getWarehouseId(), username, now);
+
+        try {
+            satuSehatOutboxService.enqueueByRegId(SatuSehatOutboxService.JOB_MEDICATION_REQUEST,
+                    ctx.getRegistrationId(), username);
+            satuSehatOutboxService.enqueueByRegId(SatuSehatOutboxService.JOB_MEDICATION_DISPENSE,
+                    ctx.getRegistrationId(), username);
+        } catch (RuntimeException ignored) {
+            // jangan gagalkan nota obat bila enqueue outbox bermasalah
+        }
+
         return new ApotikSaveResultResponse(noteId, noteNumber);
     }
 
